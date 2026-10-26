@@ -1,84 +1,130 @@
-# web-framework
+# KeyVault workspace
 
-Built with [Grit](https://gritframework.dev).
+A full-stack IT inventory application scaffolded with **Grit v3.411.4**:
+Go, Gin, GORM, SQLite, React, TypeScript, Vite and TanStack Router.
 
-## Quick Start
+## Start locally (PowerShell)
 
-```bash
-# Go hot reload, bundled by the CLI; this installs it globally instead
-go install github.com/air-verse/air@latest
+Prerequisites: Go 1.26.10+ and Node.js 22+.
 
-# Frontend dependencies
-pnpm install
-
-# Create the tables
-grit migrate
-
-# Sample data, optional
-grit seed
-
-# Run everything
-grit start
+```powershell
+Set-Location src\web-framework
+npm ci
 ```
 
-## Cloned this project?
+The generated `.env` is machine-local and ignored by Git. On a fresh clone,
+install the official Grit CLI and generate fresh environment secrets:
 
-`.env` holds this machine's secrets and is not committed; `.env.example` is, with
-`CHANGE_ME` in their place. Create yours before anything else:
-
-```bash
-grit env        # .env from .env.example, every secret freshly generated
-grit migrate
-grit seed
+```powershell
+go install github.com/MUKE-coder/grit/v3/cmd/grit@v3.411.4
+grit env
 ```
 
-To share a database that already holds encrypted data, put the team's
-`FIELD_ENCRYPTION_KEY` in `.env` instead of the new one.
+Use the SQLite settings from `.env.example`. No Docker services are necessary.
+The application automatically migrates the database on startup and seeds a
+new development database with sample inventory and Grit accounts.
 
-## Project Structure
+Start the API and frontend in two terminals:
 
-```
-web-framework/
-├── api/              # Go backend (Gin + GORM)
-├── src/              # The SPA the binary embeds
-├── packages/shared/  # Shared types, schemas, constants
-└── docker-compose.yml
-```
-
-## Services
-
-| Service | URL |
-|---------|-----|
-| API | http://localhost:8080 |
-| API docs | http://localhost:8080/docs |
-| GORM Studio | http://localhost:8080/studio |
-| Frontend | http://localhost:5173 |
-
-## Development
-
-```bash
-# The Go API, with hot reload
-cd api && air
-
-# The frontend
-pnpm dev
+```powershell
+# Terminal 1, from src\web-framework
+Set-Location api
+go run .
 ```
 
-## No servers to run
+```powershell
+# Terminal 2, from src\web-framework
+npm run dev
+```
 
-This project uses SQLite, so there is no database process to start.
-Redis is off unless you set `REDIS_URL`, and files go to `storage/` unless you
-set `STORAGE_DRIVER`.
+Open **http://localhost:5173**.
 
-## Tech Stack
+Development-only administrator: `admin@example.com` / `admin123`.
+The login page can fill these credentials when running the Vite development
+server. No demo credentials are displayed in a production build.
 
-- **Backend:** Go + Gin + GORM
-- **Frontend:** Vite + React + TanStack Router + TypeScript
-- **Styling:** Tailwind CSS + shadcn/ui
-- **Database:** SQLite
-- **Validation:** Zod (shared schemas)
-- **Data fetching:** React Query (TanStack Query)
+## Routes
 
----
+| Route | Purpose |
+| --- | --- |
+| `/` | Introduction and platform overview |
+| `/login` | Workspace login, including authenticator verification |
+| `/dashboard` | Authenticated L-shaped inventory dashboard |
+| `/dashboard?view=devices` | All devices, including servers and phones |
+| `/dashboard?view=servers` | Server inventory |
+| `/dashboard?view=mobile` | Company mobile phones |
+| `/dashboard?view=staff` | Staff directory |
+| `/dashboard?view=ownership` | Ownership assignment and handovers |
+| `/dashboard?view=services` | Services and their host devices/servers |
+| `/dashboard?view=activity` | Latest 100 inventory events |
+| `/admin/dashboard` | Generated Grit administration |
+| `/api/v1/inventory` | Authenticated inventory API |
 
-*Built with Grit v3.411.4*
+## What works
+
+- Add, edit and delete laptops, desktops, servers, phones and network devices.
+- Record tags, specifications, serials, locations, purchase/warranty dates and notes.
+- Register and manage staff, departments and job titles.
+- Assign, reassign or release device ownership with persisted change history.
+- Register services against a host, with environment, status and optional port.
+- Search, status/category filtering, pagination and CSV export of filtered records.
+- Live dashboard totals, category breakdown, recent activity and warranty reminders.
+- Responsive navigation, keyboard-accessible modal forms and explicit error states.
+- Server-side authentication and ADMIN/EDITOR authorization; regular users cannot
+  read or mutate company inventory.
+
+Staff directory records are **not login accounts**. Administrators manage login
+accounts and roles through Grit administration. This is a single-company
+workspace, not a multi-tenant SaaS.
+
+Assigning an available asset changes its status to `In use`. Changing an asset
+to `Available` or `Retired` clears its owner. Servers and other shared devices can
+be in use without a personal owner. Ownership events and mutations are saved
+atomically. A staff member with assigned assets cannot be deleted; a host with
+services cannot be deleted or retired until those services are moved or removed.
+Database foreign keys also protect these relationships.
+
+## Verification
+
+```powershell
+npm run build
+Set-Location api
+go test ./internal/handlers ./internal/routes ./internal/database ./internal/models
+go build .
+```
+
+Focused inventory tests:
+
+```powershell
+go test ./internal/handlers -run TestInventory -count=1
+```
+
+## Production
+
+Build the frontend first; Grit embeds it in the Go executable:
+
+```powershell
+npm run build
+Set-Location api
+go build -o keyvault.exe .
+.\keyvault.exe
+```
+
+The API serves the built frontend on port 8080. Its SQLite database is stored
+on disk and survives restarts. Back up that database and your environment
+encryption key.
+
+Before deployment:
+
+- Set `APP_ENV=production`, configure a real `APP_URL` and restrict CORS origins.
+- Generate unique environment secrets; never commit `.env`.
+- Provision a strong administrator password using `SEED_ADMIN_PASSWORD` and
+  Grit's seed command. Development sample staff/assets and weak accounts are
+  deliberately not seeded outside `APP_ENV=development`.
+- Disable public account registration in Grit's authentication settings if not
+  required. Registration does not grant inventory access: only ADMIN/EDITOR do.
+- Serve behind HTTPS and review Grit's administration/security configuration.
+
+Google Fonts are optional presentation resources; system fonts are used when
+they are unavailable. The landing illustration is a static preview, not live
+company data. All dashboard data comes from the Go API, not browser mock storage.

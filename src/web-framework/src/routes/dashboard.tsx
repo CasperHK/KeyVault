@@ -2,7 +2,7 @@ import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-ro
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { Activity, ArrowDownToLine, ArrowRight, ArrowUpRight, Bell, Boxes, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Clock3, Cloud, ExternalLink, Filter, Handshake, HardDrive, Laptop, LayoutDashboard, Loader2, LogOut, Menu, MoreHorizontal, Plus, Search, Server, Settings2, ShieldCheck, Smartphone, Sparkles, Trash2, Users, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { toast, Toaster } from 'sonner'
 import { Avatar, assetIcons, Badge, Brand, Modal } from '@/components/keyvault-ui'
 import { InventoryForm, type Editor } from '@/components/inventory-form'
@@ -51,6 +51,11 @@ export const Route = createFileRoute('/dashboard')({
 })
 
 function Dashboard() {
+  const { view } = Route.useSearch()
+  return <DashboardContent key={view} />
+}
+
+function DashboardContent() {
   const { user } = Route.useRouteContext()
   const { view } = Route.useSearch()
   const navigate = useNavigate()
@@ -67,7 +72,6 @@ function Dashboard() {
   const [notifications, setNotifications] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const data = inventory.data
-  useEffect(() => { setPage(1); setStatus('All statuses'); setCategory('All categories'); setMobileNav(false); setSearch('') }, [view])
   const deleteMutation = useMutation({
     mutationFn: async () => { if (deleting) await api.delete(`/api/inventory/${deleting.resource}/${deleting.id}`) },
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['inventory'] }); setDeleting(null); toast.success('Record removed from your workspace.') },

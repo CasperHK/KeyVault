@@ -4,6 +4,18 @@
 
 ---
 
+## KeyVault IT Inventory Workspace
+
+The working Grit application lives in [src/web-framework](src/web-framework).
+It includes an introduction page, login, and an authenticated L-shaped
+dashboard for devices, servers, mobile phones, staff, ownership and hosted
+services, backed by SQLite.
+
+See the [workspace setup and usage guide](src/web-framework/README.md) for
+development commands, demo credentials, available routes and production notes.
+
+---
+
 ## 🚀 快速開始 (Quick Start)
 
 ### 1. 前置需求
