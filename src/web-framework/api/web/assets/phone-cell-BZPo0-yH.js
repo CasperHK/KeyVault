@@ -1,0 +1,1 @@
+import{j as o,ag as r,ah as a}from"./index-CeutDaPZ.js";import{p as s}from"./parsePhoneNumber-BTHCSGab.js";function u({value:n}){const t=s(n),e=t?t.formatInternational():n;return o.jsx("a",{href:a("tel:"+(t?t.number:n)),title:t!=null&&t.country?r(t.country):void 0,className:"font-mono text-sm tabular-nums text-accent hover:underline",children:e})}export{u as default};

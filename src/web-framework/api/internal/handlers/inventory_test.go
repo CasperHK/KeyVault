@@ -172,3 +172,104 @@ func TestInventoryRejectsRegularUsers(t *testing.T) {
 		require.Equal(t, 403, inventoryRequest(t, r, method, path, gin.H{}).Code)
 	}
 }
+
+func TestServiceResponsibilityLifecycle(t *testing.T) {
+	r, db := inventoryTestRouter(t, "ADMIN")
+	people := []models.InventoryStaff{
+		{Name: "Alex", Email: "alex@example.com", Department: "Engineering"},
+		{Name: "Sam", Email: "sam@example.com", Department: "Operations"},
+		{Name: "Host owner", Email: "owner@example.com", Department: "IT"},
+	}
+	require.NoError(t, db.Create(&people).Error)
+	host := models.InventoryAsset{Name: "Shared server", Tag: "SV-RESP", Kind: "Server", Status: "In use", Location: "HQ", OwnerID: &people[2].ID}
+	require.NoError(t, db.Create(&host).Error)
+	input := gin.H{"name": "Company portal", "host_id": host.ID, "environment": "Production", "status": "Running", "port": 443, "responsible_staff_ids": []uint{people[0].ID, people[1].ID}}
+	response := inventoryRequest(t, r, "POST", "/inventory/services", input)
+	require.Equal(t, 200, response.Code, response.Body.String())
+	var created struct {
+		Data models.InventoryService `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &created))
+	service := created.Data
+	require.Len(t, service.ResponsibleStaff, 2)
+	require.NotEqual(t, *host.OwnerID, service.ResponsibleStaff[0].ID)
+	require.Error(t, db.Delete(&models.InventoryStaff{}, people[0].ID).Error, "Foreign key must protect responsible staff")
+	response = inventoryRequest(t, r, "GET", "/inventory", nil)
+	var snapshot struct {
+		Data struct {
+			Services []models.InventoryService `json:"services"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &snapshot))
+	require.Len(t, snapshot.Data.Services[0].ResponsibleStaff, 2)
+
+	response = inventoryRequest(t, r, "DELETE", fmt.Sprintf("/inventory/staff/%d", people[0].ID), nil)
+	require.Equal(t, 422, response.Code)
+	require.Contains(t, response.Body.String(), "service responsibilities")
+
+	var eventCount int64
+	require.NoError(t, db.Model(&models.InventoryEvent{}).Count(&eventCount).Error)
+	for _, ids := range [][]uint{{people[0].ID, 9999}, {people[0].ID, people[0].ID}, {0}} {
+		input["responsible_staff_ids"] = ids
+		input["name"] = "Must not persist"
+		response = inventoryRequest(t, r, "PUT", fmt.Sprintf("/inventory/services/%d", service.ID), input)
+		require.Equal(t, 422, response.Code, response.Body.String())
+		var persisted models.InventoryService
+		require.NoError(t, db.Preload("ResponsibleStaff").First(&persisted, service.ID).Error)
+		require.Equal(t, "Company portal", persisted.Name)
+		require.Len(t, persisted.ResponsibleStaff, 2)
+	}
+	var count int64
+	require.NoError(t, db.Model(&models.InventoryEvent{}).Count(&count).Error)
+	require.Equal(t, eventCount, count)
+
+	require.NoError(t, db.Exec(`CREATE TRIGGER reject_responsibility_event BEFORE INSERT ON inventory_events BEGIN SELECT RAISE(ABORT, 'test activity write failure'); END`).Error)
+	input["responsible_staff_ids"] = []uint{people[1].ID}
+	response = inventoryRequest(t, r, "PUT", fmt.Sprintf("/inventory/services/%d", service.ID), input)
+	require.Equal(t, 500, response.Code, response.Body.String())
+	var unchanged models.InventoryService
+	require.NoError(t, db.Preload("ResponsibleStaff").First(&unchanged, service.ID).Error)
+	require.Equal(t, "Company portal", unchanged.Name)
+	require.Len(t, unchanged.ResponsibleStaff, 2)
+	require.NoError(t, db.Exec("DROP TRIGGER reject_responsibility_event").Error)
+
+	input["name"] = "Company portal"
+	delete(input, "responsible_staff_ids")
+	response = inventoryRequest(t, r, "PUT", fmt.Sprintf("/inventory/services/%d", service.ID), input)
+	require.Equal(t, 200, response.Code, response.Body.String())
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &created))
+	require.Len(t, created.Data.ResponsibleStaff, 2, "Omitted assignment field preserves existing responsibilities")
+	input["responsible_staff_ids"] = []uint{people[1].ID}
+	response = inventoryRequest(t, r, "PUT", fmt.Sprintf("/inventory/services/%d", service.ID), input)
+	require.Equal(t, 200, response.Code, response.Body.String())
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &created))
+	require.Len(t, created.Data.ResponsibleStaff, 1)
+	require.Equal(t, people[1].ID, created.Data.ResponsibleStaff[0].ID)
+	require.Equal(t, 200, inventoryRequest(t, r, "DELETE", fmt.Sprintf("/inventory/staff/%d", people[0].ID), nil).Code)
+
+	input["responsible_staff_ids"] = []uint{}
+	response = inventoryRequest(t, r, "PUT", fmt.Sprintf("/inventory/services/%d", service.ID), input)
+	require.Equal(t, 200, response.Code, response.Body.String())
+	require.Contains(t, response.Body.String(), `"responsible_staff":[]`)
+	input["responsible_staff_ids"] = []uint{people[1].ID}
+	require.Equal(t, 200, inventoryRequest(t, r, "PUT", fmt.Sprintf("/inventory/services/%d", service.ID), input).Code)
+	require.Equal(t, 200, inventoryRequest(t, r, "DELETE", fmt.Sprintf("/inventory/services/%d", service.ID), nil).Code)
+	require.NoError(t, db.Table("inventory_service_responsibilities").Count(&count).Error)
+	require.Zero(t, count)
+	require.Equal(t, 200, inventoryRequest(t, r, "DELETE", fmt.Sprintf("/inventory/staff/%d", people[1].ID), nil).Code)
+}
+
+func TestServiceWithoutResponsibilitiesReturnsEmptyArray(t *testing.T) {
+	r, db := inventoryTestRouter(t, "EDITOR")
+	host := models.InventoryAsset{Name: "Host", Tag: "EMPTY-RESP", Status: "In use"}
+	require.NoError(t, db.Create(&host).Error)
+	response := inventoryRequest(t, r, "POST", "/inventory/services", gin.H{"name": "Legacy service", "host_id": host.ID, "environment": "Production", "status": "Running"})
+	require.Equal(t, 200, response.Code, response.Body.String())
+	require.Contains(t, response.Body.String(), `"responsible_staff":[]`)
+	require.NoError(t, db.Migrator().DropTable("inventory_service_responsibilities"))
+	require.NoError(t, db.AutoMigrate(&models.InventoryService{}))
+	response = inventoryRequest(t, r, "GET", "/inventory", nil)
+	require.Equal(t, 200, response.Code, response.Body.String())
+	require.Contains(t, response.Body.String(), `"responsible_staff":[]`)
+	require.Contains(t, response.Body.String(), `"name":"Legacy service"`)
+}

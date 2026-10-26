@@ -27,12 +27,12 @@ func (h *InventoryHandler) Snapshot(c *gin.Context) {
 			value interface{}
 			order string
 			limit int
-		}{{&staff, "name ASC", -1}, {&assets, "created_at DESC", -1}, {&services, "name ASC", -1}, {&events, "id DESC", 100}} {
+		}{{&staff, "name ASC", -1}, {&assets, "created_at DESC", -1}, {&events, "id DESC", 100}} {
 			if err := tx.Order(query.order).Limit(query.limit).Find(query.value).Error; err != nil {
 				return err
 			}
 		}
-		return nil
+		return tx.Preload("ResponsibleStaff", func(db *gorm.DB) *gorm.DB { return db.Order("name ASC") }).Order("name ASC").Find(&services).Error
 	})
 	if err != nil {
 		respond.Internal(c, err)
@@ -212,12 +212,13 @@ func (h *InventoryHandler) SaveService(c *gin.Context) {
 		return
 	}
 	var input struct {
-		Name        string `json:"name" binding:"required,max=120"`
-		Description string `json:"description" binding:"max=2000"`
-		HostID      uint   `json:"host_id" binding:"required"`
-		Environment string `json:"environment" binding:"required,oneof=Production Staging Development"`
-		Status      string `json:"status" binding:"required,oneof=Running Maintenance Stopped"`
-		Port        uint   `json:"port" binding:"lte=65535"`
+		Name                string  `json:"name" binding:"required,max=120"`
+		Description         string  `json:"description" binding:"max=2000"`
+		HostID              uint    `json:"host_id" binding:"required"`
+		Environment         string  `json:"environment" binding:"required,oneof=Production Staging Development"`
+		Status              string  `json:"status" binding:"required,oneof=Running Maintenance Stopped"`
+		Port                uint    `json:"port" binding:"lte=65535"`
+		ResponsibleStaffIDs *[]uint `json:"responsible_staff_ids" binding:"omitempty,max=1000,dive,gt=0"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil || strings.TrimSpace(input.Name) == "" {
 		respond.Validation(c, "Enter valid service details, host, environment and port (0-65535)", nil)
@@ -226,7 +227,7 @@ func (h *InventoryHandler) SaveService(c *gin.Context) {
 	var service models.InventoryService
 	err := h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		if id != 0 {
-			if err := tx.First(&service, id).Error; err != nil {
+			if err := tx.Preload("ResponsibleStaff").First(&service, id).Error; err != nil {
 				return err
 			}
 		}
@@ -240,10 +241,49 @@ func (h *InventoryHandler) SaveService(c *gin.Context) {
 		if host.Status == "Retired" {
 			return respond.Rule("A retired asset cannot host a service")
 		}
+		var responsible []models.InventoryStaff
+		if input.ResponsibleStaffIDs != nil {
+			ids := *input.ResponsibleStaffIDs
+			seen := make(map[uint]bool, len(ids))
+			for _, staffID := range ids {
+				if seen[staffID] {
+					return respond.Rule("Select each responsible staff member only once")
+				}
+				seen[staffID] = true
+			}
+			responsible = []models.InventoryStaff{}
+			if len(ids) > 0 {
+				if err := tx.Where("id IN ?", ids).Order("name ASC").Find(&responsible).Error; err != nil {
+					return err
+				}
+				if len(responsible) != len(ids) {
+					return respond.Rule("Choose existing staff members for service responsibility")
+				}
+			}
+		}
 		service.Name, service.Description, service.HostID = strings.TrimSpace(input.Name), input.Description, input.HostID
 		service.Environment, service.Status, service.Port = input.Environment, input.Status, input.Port
-		if err := tx.Save(&service).Error; err != nil {
+		if err := tx.Omit("ResponsibleStaff").Save(&service).Error; err != nil {
 			return err
+		}
+		if input.ResponsibleStaffIDs != nil {
+			if err := tx.Model(&service).Association("ResponsibleStaff").Replace(responsible); err != nil {
+				return err
+			}
+			service.ResponsibleStaff = responsible
+			names := make([]string, len(responsible))
+			for i, person := range responsible {
+				names[i] = person.Name
+			}
+			summary := "Unassigned"
+			if len(names) > 0 {
+				summary = strings.Join(names, ", ")
+			}
+			if err := inventoryEvent(tx, c, "responsibility", fmt.Sprintf("%s responsible staff set to %s", service.Name, summary)); err != nil {
+				return err
+			}
+		} else if service.ResponsibleStaff == nil {
+			service.ResponsibleStaff = []models.InventoryStaff{}
 		}
 		return inventoryEvent(tx, c, "service", fmt.Sprintf("%s recorded on %s", service.Name, host.Tag))
 	})
@@ -280,6 +320,12 @@ func (h *InventoryHandler) Delete(c *gin.Context) {
 			if count > 0 {
 				return respond.Rule("Reassign this staff member's assets before deleting their record")
 			}
+			if err := tx.Table("inventory_service_responsibilities").Where("inventory_staff_id = ?", id).Count(&count).Error; err != nil {
+				return err
+			}
+			if count > 0 {
+				return respond.Rule("Remove or reassign this staff member's service responsibilities before deleting their record")
+			}
 		case "services":
 			record = &models.InventoryService{}
 		default:
@@ -287,6 +333,11 @@ func (h *InventoryHandler) Delete(c *gin.Context) {
 		}
 		if err := tx.First(record, id).Error; err != nil {
 			return err
+		}
+		if resource == "services" {
+			if err := tx.Model(record).Association("ResponsibleStaff").Clear(); err != nil {
+				return err
+			}
 		}
 		if err := tx.Delete(record).Error; err != nil {
 			return err

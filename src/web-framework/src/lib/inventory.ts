@@ -26,6 +26,7 @@ export interface Asset {
 }
 
 export interface Service {
+  responsible_staff: Staff[];
   id: number;
   name: string;
   description: string;

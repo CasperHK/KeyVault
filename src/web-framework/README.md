@@ -75,6 +75,7 @@ server. No demo credentials are displayed in a production build.
 | `/dashboard?view=servers` | Server inventory |
 | `/dashboard?view=mobile` | Company mobile phones |
 | `/dashboard?view=staff` | Staff directory |
+| `/dashboard?view=staff&staff_id=1` | Shareable staff profile and currently assigned devices |
 | `/dashboard?view=ownership` | Ownership assignment and handovers |
 | `/dashboard?view=services` | Services and their host devices/servers |
 | `/dashboard?view=activity` | Latest 100 inventory events |
@@ -86,8 +87,16 @@ server. No demo credentials are displayed in a production build.
 - Add, edit and delete laptops, desktops, servers, phones and network devices.
 - Record tags, specifications, serials, locations, purchase/warranty dates and notes.
 - Register and manage staff, departments and job titles.
+- Open a staff name, assigned-asset count, or device owner to review a staff
+  detail page with profile, all assigned devices, warranty information and
+  services hosted on those devices. Export that person's devices or open an
+  assigned device to manage it; ownership changes refresh the profile.
 - Assign, reassign or release device ownership with persisted change history.
 - Register services against a host, with environment, status and optional port.
+- Assign multiple responsible staff to each service in its add/edit form.
+  Staff profiles list explicitly responsible services separately from services
+  hosted on owned devices. Service search and CSV exports include responsible
+  staff, and names link back to their profiles.
 - Search, status/category filtering, pagination and CSV export of filtered records.
 - Live dashboard totals, category breakdown, recent activity and warranty reminders.
 - Responsive navigation, keyboard-accessible modal forms and explicit error states.
@@ -104,6 +113,12 @@ be in use without a personal owner. Ownership events and mutations are saved
 atomically. A staff member with assigned assets cannot be deleted; a host with
 services cannot be deleted or retired until those services are moved or removed.
 Database foreign keys also protect these relationships.
+
+Service responsibility is independent of device ownership. Existing services
+start unassigned; no responsibilities are inferred from a host's owner.
+Remove or reassign a staff member's service responsibilities before deleting
+their record. Deleting a service removes its responsibility links. Restart the
+Go API after updating so auto-migration creates the new relationship table.
 
 ## Verification
 

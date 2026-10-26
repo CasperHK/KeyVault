@@ -27,6 +27,11 @@ export function InventoryForm({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const [responsibleStaffIDs, setResponsibleStaffIDs] = useState<number[]>(() =>
+    editor.kind === "service"
+      ? editor.record?.responsible_staff.map((person) => person.id) || []
+      : []
+  );
   const [values, setValues] = useState<Record<string, string>>(() => ({
     name: "",
     tag: "",
@@ -91,6 +96,7 @@ export function InventoryForm({
                 environment: values.environment,
                 status: values.status,
                 port: Number(values.port || 0),
+                responsible_staff_ids: responsibleStaffIDs,
               };
       const resource =
         editor.kind === "asset" ? "assets" : editor.kind === "service" ? "services" : "staff";
@@ -268,6 +274,38 @@ export function InventoryForm({
               )}
               {select("status", "Status *", choices(["Running", "Maintenance", "Stopped"]))}
               {input("port", "Port (optional)", { type: "number", placeholder: "e.g. 443" })}
+              <fieldset className="kv-form-full kv-responsibility-picker">
+                <legend>Responsible staff</legend>
+                <p>
+                  Select everyone responsible for this service, regardless of who owns its host
+                  device.
+                </p>
+                {data.staff.length === 0 ? (
+                  <p>Register staff in the directory to assign responsibility.</p>
+                ) : (
+                  <div>
+                    {data.staff.map((person) => (
+                      <label key={person.id}>
+                        <input
+                          type="checkbox"
+                          checked={responsibleStaffIDs.includes(person.id)}
+                          onChange={(event) =>
+                            setResponsibleStaffIDs((previous) =>
+                              event.target.checked
+                                ? [...previous, person.id]
+                                : previous.filter((id) => id !== person.id)
+                            )
+                          }
+                        />
+                        <span>
+                          {person.name}
+                          <small>{person.department}</small>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </fieldset>
               <label className="kv-form-full">
                 Description
                 <textarea

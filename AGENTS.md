@@ -55,6 +55,10 @@ precisely than the root README's original software/license roadmap.
 - Assets cover laptops, desktops, servers, mobile phones and network equipment.
   Staff records describe people and departments; they are **not login accounts**.
   Services reference their host asset and record environment, status and port.
+- Services can have multiple explicitly responsible staff members. Keep this
+  many-to-many relationship separate from host-device ownership; staff profiles
+  show responsible services and services hosted on owned devices separately.
+  Staff with service responsibilities cannot be deleted until reassigned.
 - Enforce authentication and ADMIN/EDITOR inventory authorization on the
   server. Frontend guards and hidden controls are not security boundaries.
   Regular USER accounts must not gain inventory access through registration.

@@ -41,6 +41,7 @@ import { useMemo, useState } from "react";
 import { toast, Toaster } from "sonner";
 import { Avatar, assetIcons, Badge, Brand, Modal } from "@/components/keyvault-ui";
 import { InventoryForm, type Editor } from "@/components/inventory-form";
+import { StaffDetail } from "@/components/staff-detail";
 import { clearAuth, logout, me } from "@/lib/auth";
 import { api } from "@/lib/api";
 import {
@@ -118,9 +119,17 @@ const nav = [
 ] as const;
 
 export const Route = createFileRoute("/dashboard")({
-  validateSearch: (search: Record<string, unknown>): { view: View } => ({
-    view: views.find((view) => view === search.view) || "overview",
-  }),
+  validateSearch: (search: Record<string, unknown>): { view: View; staff_id?: number } => {
+    const view = views.find((view) => view === search.view) || "overview";
+    if (view !== "staff" || search.staff_id === undefined) return { view };
+    const staffID = Number(search.staff_id);
+    if (!Number.isSafeInteger(staffID) || staffID <= 0) {
+      throw new Error(
+        "Staff ID must be a positive integer. Open the staff directory to choose a person."
+      );
+    }
+    return { view, staff_id: staffID };
+  },
   beforeLoad: async () => {
     try {
       const user = await me();
@@ -151,13 +160,13 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
-  const { view } = Route.useSearch();
-  return <DashboardContent key={view} />;
+  const { view, staff_id } = Route.useSearch();
+  return <DashboardContent key={`${view}-${staff_id || ""}`} />;
 }
 
 function DashboardContent() {
   const { user } = Route.useRouteContext();
-  const { view } = Route.useSearch();
+  const { view, staff_id } = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const inventory = useQuery({ queryKey: ["inventory"], queryFn: getInventory, staleTime: 15_000 });
@@ -174,6 +183,10 @@ function DashboardContent() {
   const [notifications, setNotifications] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const data = inventory.data;
+  const isStaffDetail = view === "staff" && staff_id !== undefined;
+  const selectedStaff = isStaffDetail
+    ? data?.staff.find((person) => person.id === staff_id)
+    : undefined;
   const deleteMutation = useMutation({
     mutationFn: async () => {
       if (deleting) await api.delete(`/api/inventory/${deleting.resource}/${deleting.id}`);
@@ -212,7 +225,7 @@ function DashboardContent() {
     ) || [];
   const filteredServices =
     data?.services.filter((service) =>
-      `${service.name} ${service.description} ${service.environment} ${data.assets.find((asset) => asset.id === service.host_id)?.name}`
+      `${service.name} ${service.description} ${service.environment} ${service.responsible_staff.map((person) => person.name).join(" ")} ${data.assets.find((asset) => asset.id === service.host_id)?.name}`
         .toLowerCase()
         .includes(search.toLowerCase())
     ) || [];
@@ -271,7 +284,15 @@ function DashboardContent() {
           ]
         : view === "services"
           ? [
-              ["Service", "Description", "Host", "Environment", "Status", "Port"],
+              [
+                "Service",
+                "Description",
+                "Host",
+                "Environment",
+                "Status",
+                "Port",
+                "Responsible staff",
+              ],
               ...filteredServices.map((service) => [
                 service.name,
                 service.description,
@@ -279,6 +300,7 @@ function DashboardContent() {
                 service.environment,
                 service.status,
                 service.port,
+                service.responsible_staff.map((person) => person.name).join("; "),
               ]),
             ]
           : view === "activity"
@@ -481,28 +503,36 @@ function DashboardContent() {
                   Welcome back, {user.first_name} <span className="kv-wave">*</span>
                 </span>
               )}
-              <h1>{viewDetails[view].title}</h1>
-              <p>{viewDetails[view].subtitle}</p>
+              <h1>
+                {isStaffDetail ? selectedStaff?.name || "Staff details" : viewDetails[view].title}
+              </h1>
+              <p>
+                {isStaffDetail
+                  ? "Their people profile, assigned devices and service responsibilities."
+                  : viewDetails[view].subtitle}
+              </p>
             </div>
-            <div className="kv-heading-actions">
-              <button className="kv-button" onClick={exportData} disabled={!data}>
-                <ArrowDownToLine size={16} /> Export
-              </button>
-              {view !== "activity" && (
-                <button className="kv-button primary" onClick={openAdd} disabled={!data}>
-                  <Plus size={17} />
-                  {view === "staff"
-                    ? "Add staff"
-                    : view === "services"
-                      ? "Add service"
-                      : view === "servers"
-                        ? "Add server"
-                        : view === "mobile"
-                          ? "Add phone"
-                          : "Add asset"}
+            {!isStaffDetail && (
+              <div className="kv-heading-actions">
+                <button className="kv-button" onClick={exportData} disabled={!data}>
+                  <ArrowDownToLine size={16} /> Export
                 </button>
-              )}
-            </div>
+                {view !== "activity" && (
+                  <button className="kv-button primary" onClick={openAdd} disabled={!data}>
+                    <Plus size={17} />
+                    {view === "staff"
+                      ? "Add staff"
+                      : view === "services"
+                        ? "Add service"
+                        : view === "servers"
+                          ? "Add server"
+                          : view === "mobile"
+                            ? "Add phone"
+                            : "Add asset"}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           {inventory.isPending ? (
             <div className="kv-loading">
@@ -676,347 +706,367 @@ function DashboardContent() {
                     </div>
                   </>
                 )}
-                <section className="kv-card kv-inventory-card">
-                  <div className="kv-card-heading">
-                    <div>
-                      <h2>
-                        {view === "overview" ? "Your inventory" : viewDetails[view].label}
-                        <span className="kv-count-pill">
-                          {view === "staff"
-                            ? data.staff.length
-                            : view === "services"
-                              ? data.services.length
+                {isStaffDetail ? (
+                  <StaffDetail
+                    person={selectedStaff}
+                    data={data}
+                    onEditStaff={(person) => setEditor({ kind: "staff", record: person })}
+                    onEditAsset={editAsset}
+                    onEditService={(service) => setEditor({ kind: "service", record: service })}
+                  />
+                ) : (
+                  <section className="kv-card kv-inventory-card">
+                    <div className="kv-card-heading">
+                      <div>
+                        <h2>
+                          {view === "overview" ? "Your inventory" : viewDetails[view].label}
+                          <span className="kv-count-pill">
+                            {view === "staff"
+                              ? data.staff.length
+                              : view === "services"
+                                ? data.services.length
+                                : view === "activity"
+                                  ? data.events.length
+                                  : view === "servers"
+                                    ? data.assets.filter((asset) => asset.kind === "Server").length
+                                    : view === "mobile"
+                                      ? data.assets.filter((asset) => asset.kind === "Mobile")
+                                          .length
+                                      : data.assets.length}
+                          </span>
+                        </h2>
+                        <p>
+                          {view === "overview"
+                            ? "The tools your team does great things with."
+                            : view === "ownership"
+                              ? "Choose an asset to assign, reassign or release its owner."
                               : view === "activity"
-                                ? data.events.length
-                                : view === "servers"
-                                  ? data.assets.filter((asset) => asset.kind === "Server").length
-                                  : view === "mobile"
-                                    ? data.assets.filter((asset) => asset.kind === "Mobile").length
-                                    : data.assets.length}
-                        </span>
-                      </h2>
-                      <p>
-                        {view === "overview"
-                          ? "The tools your team does great things with."
-                          : view === "ownership"
-                            ? "Choose an asset to assign, reassign or release its owner."
-                            : view === "activity"
-                              ? "Your most recent 100 inventory events."
-                              : "Keep the details current. Make every connection count."}
-                      </p>
-                    </div>
-                    {view === "overview" && (
-                      <Link to="/dashboard" search={{ view: "devices" }} className="kv-text-link">
-                        View all assets
-                        <ArrowUpRight size={15} />
-                      </Link>
-                    )}
-                  </div>
-                  <div className="kv-table-toolbar">
-                    <label className="kv-search">
-                      <Search size={17} />
-                      <input
-                        aria-label="Search inventory"
-                        placeholder={
-                          view === "staff"
-                            ? "Search people, departments..."
-                            : view === "services"
-                              ? "Search services, hosts..."
-                              : view === "activity"
-                                ? "Search activity..."
-                                : "Search assets, people, tags..."
-                        }
-                        value={search}
-                        onChange={(event) => setQuery(event.target.value)}
-                      />
-                      {search && (
-                        <button aria-label="Clear search" onClick={() => setQuery("")}>
-                          <X size={14} />
-                        </button>
+                                ? "Your most recent 100 inventory events."
+                                : "Keep the details current. Make every connection count."}
+                        </p>
+                      </div>
+                      {view === "overview" && (
+                        <Link to="/dashboard" search={{ view: "devices" }} className="kv-text-link">
+                          View all assets
+                          <ArrowUpRight size={15} />
+                        </Link>
                       )}
-                    </label>
-                    {!["staff", "services", "activity"].includes(view) && (
-                      <div className="kv-table-filters">
-                        <label className="kv-filter">
-                          <Filter size={14} />
-                          <select
-                            aria-label="Filter by status"
-                            value={status}
-                            onChange={(event) => {
-                              setStatus(event.target.value);
-                              setPage(1);
-                            }}
-                          >
-                            {["All statuses", "In use", "Available", "Maintenance", "Retired"].map(
-                              (value) => (
-                                <option key={value}>{value}</option>
-                              )
-                            )}
-                          </select>
-                        </label>
-                        {view !== "servers" && view !== "mobile" && (
+                    </div>
+                    <div className="kv-table-toolbar">
+                      <label className="kv-search">
+                        <Search size={17} />
+                        <input
+                          aria-label="Search inventory"
+                          placeholder={
+                            view === "staff"
+                              ? "Search people, departments..."
+                              : view === "services"
+                                ? "Search services, hosts, responsible staff..."
+                                : view === "activity"
+                                  ? "Search activity..."
+                                  : "Search assets, people, tags..."
+                          }
+                          value={search}
+                          onChange={(event) => setQuery(event.target.value)}
+                        />
+                        {search && (
+                          <button aria-label="Clear search" onClick={() => setQuery("")}>
+                            <X size={14} />
+                          </button>
+                        )}
+                      </label>
+                      {!["staff", "services", "activity"].includes(view) && (
+                        <div className="kv-table-filters">
                           <label className="kv-filter">
+                            <Filter size={14} />
                             <select
-                              aria-label="Filter by category"
-                              value={category}
+                              aria-label="Filter by status"
+                              value={status}
                               onChange={(event) => {
-                                setCategory(event.target.value);
+                                setStatus(event.target.value);
                                 setPage(1);
                               }}
                             >
                               {[
-                                "All categories",
-                                "Laptop",
-                                "Desktop",
-                                "Server",
-                                "Mobile",
-                                "Network",
+                                "All statuses",
+                                "In use",
+                                "Available",
+                                "Maintenance",
+                                "Retired",
                               ].map((value) => (
                                 <option key={value}>{value}</option>
                               ))}
                             </select>
                           </label>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {total === 0 ? (
-                    <div className="kv-empty">
-                      <Search size={30} />
-                      <h3>
-                        {search || status !== "All statuses" || category !== "All categories"
-                          ? "No matches. A fresh search might help."
-                          : "A little empty. Full of possibilities."}
-                      </h3>
-                      <p>
-                        {search
-                          ? "Try another name, tag, department or location."
-                          : "Add your first record to start connecting your workspace."}
-                      </p>
-                      <button
-                        className="kv-button"
-                        onClick={() => {
-                          if (
-                            search ||
-                            status !== "All statuses" ||
-                            category !== "All categories"
-                          ) {
-                            setQuery("");
-                            setStatus("All statuses");
-                            setCategory("All categories");
-                          } else openAdd();
-                        }}
-                      >
-                        {search || status !== "All statuses" || category !== "All categories"
-                          ? "Clear filters"
-                          : "Add your first record"}
-                      </button>
+                          {view !== "servers" && view !== "mobile" && (
+                            <label className="kv-filter">
+                              <select
+                                aria-label="Filter by category"
+                                value={category}
+                                onChange={(event) => {
+                                  setCategory(event.target.value);
+                                  setPage(1);
+                                }}
+                              >
+                                {[
+                                  "All categories",
+                                  "Laptop",
+                                  "Desktop",
+                                  "Server",
+                                  "Mobile",
+                                  "Network",
+                                ].map((value) => (
+                                  <option key={value}>{value}</option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="kv-table-scroll">
-                      <table className="kv-table">
-                        <thead>
-                          <tr>
-                            {(view === "staff"
-                              ? ["Staff member", "Department", "Job title", "Assets", ""]
-                              : view === "services"
-                                ? [
-                                    "Service",
-                                    "Host device / server",
-                                    "Environment",
-                                    "Status",
-                                    "Port",
-                                    "",
-                                  ]
-                                : view === "activity"
-                                  ? ["Activity", "Category", "By", "When"]
-                                  : [
-                                      "Asset name",
-                                      "Asset tag",
+                    {total === 0 ? (
+                      <div className="kv-empty">
+                        <Search size={30} />
+                        <h3>
+                          {search || status !== "All statuses" || category !== "All categories"
+                            ? "No matches. A fresh search might help."
+                            : "A little empty. Full of possibilities."}
+                        </h3>
+                        <p>
+                          {search
+                            ? "Try another name, tag, department or location."
+                            : "Add your first record to start connecting your workspace."}
+                        </p>
+                        <button
+                          className="kv-button"
+                          onClick={() => {
+                            if (
+                              search ||
+                              status !== "All statuses" ||
+                              category !== "All categories"
+                            ) {
+                              setQuery("");
+                              setStatus("All statuses");
+                              setCategory("All categories");
+                            } else openAdd();
+                          }}
+                        >
+                          {search || status !== "All statuses" || category !== "All categories"
+                            ? "Clear filters"
+                            : "Add your first record"}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="kv-table-scroll">
+                        <table className="kv-table">
+                          <thead>
+                            <tr>
+                              {(view === "staff"
+                                ? ["Staff member", "Department", "Job title", "Assets", ""]
+                                : view === "services"
+                                  ? [
+                                      "Service",
+                                      "Host device / server",
+                                      "Environment",
                                       "Status",
-                                      "Assigned to",
-                                      "Location",
+                                      "Port",
+                                      "Responsible staff",
                                       "",
                                     ]
-                            ).map((heading, index) => (
-                              <th key={index}>
-                                {heading || <span className="kv-sr-only">Actions</span>}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {view === "staff"
-                            ? filteredStaff.slice(start, start + pageSize).map((person) => (
-                                <StaffRow
-                                  key={person.id}
-                                  person={person}
-                                  data={data}
-                                  onEdit={() => setEditor({ kind: "staff", record: person })}
-                                  onDelete={() => {
-                                    deleteMutation.reset();
-                                    setDeleting({
-                                      resource: "staff",
-                                      id: person.id,
-                                      name: person.name,
-                                    });
-                                  }}
-                                />
-                              ))
-                            : view === "services"
-                              ? filteredServices.slice(start, start + pageSize).map((service) => (
-                                  <ServiceRow
-                                    key={service.id}
-                                    service={service}
+                                  : view === "activity"
+                                    ? ["Activity", "Category", "By", "When"]
+                                    : [
+                                        "Asset name",
+                                        "Asset tag",
+                                        "Status",
+                                        "Assigned to",
+                                        "Location",
+                                        "",
+                                      ]
+                              ).map((heading, index) => (
+                                <th key={index}>
+                                  {heading || <span className="kv-sr-only">Actions</span>}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {view === "staff"
+                              ? filteredStaff.slice(start, start + pageSize).map((person) => (
+                                  <StaffRow
+                                    key={person.id}
+                                    person={person}
                                     data={data}
-                                    onEdit={() => setEditor({ kind: "service", record: service })}
+                                    onEdit={() => setEditor({ kind: "staff", record: person })}
                                     onDelete={() => {
                                       deleteMutation.reset();
                                       setDeleting({
-                                        resource: "services",
-                                        id: service.id,
-                                        name: service.name,
+                                        resource: "staff",
+                                        id: person.id,
+                                        name: person.name,
                                       });
                                     }}
                                   />
                                 ))
-                              : view === "activity"
-                                ? filteredEvents.slice(start, start + pageSize).map((event) => (
-                                    <tr key={event.id}>
-                                      <td>
-                                        <strong>{event.message}</strong>
-                                      </td>
-                                      <td>
-                                        <span className="kv-pill">{event.category}</span>
-                                      </td>
-                                      <td>{event.actor}</td>
-                                      <td className="kv-nowrap">
-                                        {new Date(event.created_at).toLocaleString()}
-                                      </td>
-                                    </tr>
+                              : view === "services"
+                                ? filteredServices.slice(start, start + pageSize).map((service) => (
+                                    <ServiceRow
+                                      key={service.id}
+                                      service={service}
+                                      data={data}
+                                      onEdit={() => setEditor({ kind: "service", record: service })}
+                                      onDelete={() => {
+                                        deleteMutation.reset();
+                                        setDeleting({
+                                          resource: "services",
+                                          id: service.id,
+                                          name: service.name,
+                                        });
+                                      }}
+                                    />
                                   ))
-                                : assets.map((asset) => {
-                                    const Icon = assetIcons[asset.kind];
-                                    const person = owner(asset.owner_id);
-                                    return (
-                                      <tr key={asset.id}>
+                                : view === "activity"
+                                  ? filteredEvents.slice(start, start + pageSize).map((event) => (
+                                      <tr key={event.id}>
                                         <td>
-                                          <button
-                                            className="kv-asset-name"
-                                            onClick={() => editAsset(asset)}
-                                          >
-                                            <span
-                                              className={`kv-device-icon ${asset.kind.toLowerCase()}`}
-                                            >
-                                              <Icon size={22} strokeWidth={1.5} />
-                                            </span>
-                                            <span>
-                                              <strong>{asset.name}</strong>
-                                              <small>{asset.model || asset.kind}</small>
-                                            </span>
-                                          </button>
+                                          <strong>{event.message}</strong>
                                         </td>
                                         <td>
-                                          <code>{asset.tag}</code>
+                                          <span className="kv-pill">{event.category}</span>
                                         </td>
-                                        <td>
-                                          <Badge status={asset.status} />
-                                        </td>
-                                        <td>
-                                          {person ? (
-                                            <span className="kv-person">
-                                              <Avatar name={person.name} small />
-                                              <span>{person.name}</span>
-                                            </span>
-                                          ) : (
-                                            <span className="kv-unassigned">
-                                              <span />
-                                              Unassigned
-                                            </span>
-                                          )}
-                                        </td>
-                                        <td>
-                                          <span className="kv-location">
-                                            <Building2 size={13} />
-                                            {asset.location}
-                                          </span>
-                                        </td>
-                                        <td>
-                                          <div className="kv-row-actions">
-                                            <button
-                                              className="kv-icon-button"
-                                              aria-label={`Manage ${asset.name}`}
-                                              onClick={() => editAsset(asset)}
-                                            >
-                                              <MoreHorizontal size={19} />
-                                            </button>
-                                            <button
-                                              className="kv-icon-button kv-delete-button"
-                                              aria-label={`Delete ${asset.name}`}
-                                              onClick={() => {
-                                                deleteMutation.reset();
-                                                setDeleting({
-                                                  resource: "assets",
-                                                  id: asset.id,
-                                                  name: asset.name,
-                                                });
-                                              }}
-                                            >
-                                              <Trash2 size={15} />
-                                            </button>
-                                          </div>
+                                        <td>{event.actor}</td>
+                                        <td className="kv-nowrap">
+                                          {new Date(event.created_at).toLocaleString()}
                                         </td>
                                       </tr>
-                                    );
-                                  })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                  <div className="kv-table-pagination">
-                    <span>
-                      {total > 0 ? (
-                        <>
-                          Showing{" "}
-                          <strong>
-                            {start + 1}-{Math.min(start + pageSize, total)}
-                          </strong>{" "}
-                          of <strong>{total}</strong>{" "}
-                          {view === "staff"
-                            ? "people"
-                            : view === "services"
-                              ? "services"
-                              : view === "activity"
-                                ? "events"
-                                : "assets"}
-                        </>
-                      ) : (
-                        "No records to show"
-                      )}
-                    </span>
-                    <div>
-                      <button
-                        className="kv-button small"
-                        disabled={currentPage <= 1}
-                        onClick={() => setPage(currentPage - 1)}
-                      >
-                        <ChevronLeft size={15} />
-                        Previous
-                      </button>
+                                    ))
+                                  : assets.map((asset) => {
+                                      const Icon = assetIcons[asset.kind];
+                                      const person = owner(asset.owner_id);
+                                      return (
+                                        <tr key={asset.id}>
+                                          <td>
+                                            <button
+                                              className="kv-asset-name"
+                                              onClick={() => editAsset(asset)}
+                                            >
+                                              <span
+                                                className={`kv-device-icon ${asset.kind.toLowerCase()}`}
+                                              >
+                                                <Icon size={22} strokeWidth={1.5} />
+                                              </span>
+                                              <span>
+                                                <strong>{asset.name}</strong>
+                                                <small>{asset.model || asset.kind}</small>
+                                              </span>
+                                            </button>
+                                          </td>
+                                          <td>
+                                            <code>{asset.tag}</code>
+                                          </td>
+                                          <td>
+                                            <Badge status={asset.status} />
+                                          </td>
+                                          <td>
+                                            {person ? (
+                                              <Link
+                                                to="/dashboard"
+                                                search={{ view: "staff", staff_id: person.id }}
+                                                className="kv-person kv-owner-link"
+                                              >
+                                                <Avatar name={person.name} small />
+                                                <span>{person.name}</span>
+                                              </Link>
+                                            ) : (
+                                              <span className="kv-unassigned">
+                                                <span />
+                                                Unassigned
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td>
+                                            <span className="kv-location">
+                                              <Building2 size={13} />
+                                              {asset.location}
+                                            </span>
+                                          </td>
+                                          <td>
+                                            <div className="kv-row-actions">
+                                              <button
+                                                className="kv-icon-button"
+                                                aria-label={`Manage ${asset.name}`}
+                                                onClick={() => editAsset(asset)}
+                                              >
+                                                <MoreHorizontal size={19} />
+                                              </button>
+                                              <button
+                                                className="kv-icon-button kv-delete-button"
+                                                aria-label={`Delete ${asset.name}`}
+                                                onClick={() => {
+                                                  deleteMutation.reset();
+                                                  setDeleting({
+                                                    resource: "assets",
+                                                    id: asset.id,
+                                                    name: asset.name,
+                                                  });
+                                                }}
+                                              >
+                                                <Trash2 size={15} />
+                                              </button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    <div className="kv-table-pagination">
                       <span>
-                        {currentPage} / {pages}
+                        {total > 0 ? (
+                          <>
+                            Showing{" "}
+                            <strong>
+                              {start + 1}-{Math.min(start + pageSize, total)}
+                            </strong>{" "}
+                            of <strong>{total}</strong>{" "}
+                            {view === "staff"
+                              ? "people"
+                              : view === "services"
+                                ? "services"
+                                : view === "activity"
+                                  ? "events"
+                                  : "assets"}
+                          </>
+                        ) : (
+                          "No records to show"
+                        )}
                       </span>
-                      <button
-                        className="kv-button small"
-                        disabled={currentPage >= pages}
-                        onClick={() => setPage(currentPage + 1)}
-                      >
-                        Next
-                        <ChevronRight size={15} />
-                      </button>
+                      <div>
+                        <button
+                          className="kv-button small"
+                          disabled={currentPage <= 1}
+                          onClick={() => setPage(currentPage - 1)}
+                        >
+                          <ChevronLeft size={15} />
+                          Previous
+                        </button>
+                        <span>
+                          {currentPage} / {pages}
+                        </span>
+                        <button
+                          className="kv-button small"
+                          disabled={currentPage >= pages}
+                          onClick={() => setPage(currentPage + 1)}
+                        >
+                          Next
+                          <ChevronRight size={15} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </section>
+                  </section>
+                )}
                 {view === "overview" && (
                   <div className="kv-dashboard-bottom">
                     <section className="kv-card kv-recent">
@@ -1107,8 +1157,8 @@ function DashboardContent() {
         >
           <div className="kv-delete-content">
             <p>
-              Reassign any owned assets or hosted services first. Past activity will remain in the
-              log.
+              Reassign any owned assets, service responsibilities or hosted services first. Past
+              activity will remain in the log.
             </p>
             {deleteMutation.isError && (
               <div className="kv-error" role="alert">
@@ -1278,19 +1328,32 @@ function StaffRow({
   return (
     <tr>
       <td>
-        <button className="kv-asset-name" onClick={onEdit}>
+        <Link
+          to="/dashboard"
+          search={{ view: "staff", staff_id: person.id }}
+          className="kv-asset-name"
+        >
           <Avatar name={person.name} />
           <span>
             <strong>{person.name}</strong>
             <small>{person.email}</small>
           </span>
-        </button>
+        </Link>
       </td>
       <td>
         <span className="kv-pill">{person.department}</span>
       </td>
       <td>{person.job_title || "-"}</td>
-      <td>{data.assets.filter((asset) => asset.owner_id === person.id).length} assigned</td>
+      <td>
+        <Link
+          to="/dashboard"
+          search={{ view: "staff", staff_id: person.id }}
+          className="kv-text-link"
+        >
+          {data.assets.filter((asset) => asset.owner_id === person.id).length} assigned{" "}
+          <ArrowUpRight size={13} />
+        </Link>
+      </td>
       <td>
         <div className="kv-row-actions">
           <button className="kv-icon-button" onClick={onEdit} aria-label={`Manage ${person.name}`}>
@@ -1351,6 +1414,24 @@ function ServiceRow({
       </td>
       <td>
         <code>{service.port || "-"}</code>
+      </td>
+      <td>
+        <div className="kv-responsible-links">
+          {service.responsible_staff.length ? (
+            service.responsible_staff.map((person) => (
+              <Link
+                key={person.id}
+                to="/dashboard"
+                search={{ view: "staff", staff_id: person.id }}
+                className="kv-text-link"
+              >
+                {person.name}
+              </Link>
+            ))
+          ) : (
+            <span className="kv-unassigned">Unassigned</span>
+          )}
+        </div>
       </td>
       <td>
         <div className="kv-row-actions">

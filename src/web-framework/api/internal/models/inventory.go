@@ -31,16 +31,17 @@ type InventoryAsset struct {
 }
 
 type InventoryService struct {
-	ID          uint           `json:"id" gorm:"primaryKey"`
-	Name        string         `json:"name" gorm:"not null;uniqueIndex"`
-	Description string         `json:"description"`
-	HostID      uint           `json:"host_id" gorm:"not null"`
-	Host        InventoryAsset `json:"-" gorm:"foreignKey:HostID;constraint:OnDelete:RESTRICT"`
-	Environment string         `json:"environment"`
-	Status      string         `json:"status"`
-	Port        uint           `json:"port"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
+	ResponsibleStaff []InventoryStaff `json:"responsible_staff" gorm:"many2many:inventory_service_responsibilities;constraint:OnDelete:RESTRICT"`
+	ID               uint             `json:"id" gorm:"primaryKey"`
+	Name             string           `json:"name" gorm:"not null;uniqueIndex"`
+	Description      string           `json:"description"`
+	HostID           uint             `json:"host_id" gorm:"not null"`
+	Host             InventoryAsset   `json:"-" gorm:"foreignKey:HostID;constraint:OnDelete:RESTRICT"`
+	Environment      string           `json:"environment"`
+	Status           string           `json:"status"`
+	Port             uint             `json:"port"`
+	CreatedAt        time.Time        `json:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at"`
 }
 
 type InventoryEvent struct {
