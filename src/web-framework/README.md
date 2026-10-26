@@ -132,3 +132,14 @@ Before deployment:
 Google Fonts are optional presentation resources; system fonts are used when
 they are unavailable. The landing illustration is a static preview, not live
 company data. All dashboard data comes from the Go API, not browser mock storage.
+
+### Upstream dependency advisory
+
+At initialization, `npm audit --omit=dev` reports
+[GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)
+against Grit's generated Zod 3 dependency (oversized collection validation can
+exhaust memory). Inventory mutations are validated on the Go server, but this
+does not remove the dependency advisory. A verified migration of the generated
+Grit admin schemas and form resolvers to a patched Zod release is required
+before treating this scaffold as production-hardened. Do not apply
+`npm audit fix --force` without testing that major-version migration.
