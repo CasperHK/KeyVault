@@ -1,0 +1,108 @@
+.kv-scroll-top {
+  position: fixed;
+  z-index: 35;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 1px solid #ffffff70;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #a18ae7, #7052bb);
+  color: #fff;
+  box-shadow:
+    0 8px 24px #7052bb40,
+    inset 0 1px 0 #ffffff50;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(16px) scale(0.85);
+  transition:
+    opacity 200ms ease,
+    transform 250ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 200ms,
+    box-shadow 200ms ease;
+}
+.kv-scroll-top[data-admin="true"] {
+  bottom: calc(88px + env(safe-area-inset-bottom));
+}
+.kv-scroll-top[data-visible="true"] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+.kv-scroll-top[data-visible="true"]:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 12px 30px #7052bb60,
+    inset 0 1px 0 #ffffff70;
+}
+.kv-scroll-top:active {
+  scale: 0.95;
+}
+.kv-scroll-top:focus-visible {
+  outline: 3px solid #b9a6ee;
+  outline-offset: 4px;
+}
+.kv-scroll-top-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke-width: 2;
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+.kv-scroll-top-track {
+  stroke: #ffffff30;
+}
+.kv-scroll-top-progress {
+  stroke: #fff;
+  stroke-linecap: round;
+}
+.kv-scroll-top-label {
+  position: absolute;
+  right: calc(100% + 12px);
+  padding: 7px 11px;
+  border: 1px solid #ffffff20;
+  border-radius: 8px;
+  background: #38294e;
+  color: #fff;
+  font:
+    500 12px / 1.4 system-ui,
+    sans-serif;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px #2e1d4020;
+  opacity: 0;
+  transform: translateX(5px);
+  pointer-events: none;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+.kv-scroll-top:hover .kv-scroll-top-label,
+.kv-scroll-top:focus-visible .kv-scroll-top-label {
+  opacity: 1;
+  transform: translateX(0);
+}
+@media (max-width: 600px) {
+  .kv-scroll-top {
+    right: max(16px, env(safe-area-inset-right));
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    width: 48px;
+    height: 48px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kv-scroll-top,
+  .kv-scroll-top-label {
+    transition: none;
+    transform: none !important;
+    scale: none;
+  }
+}

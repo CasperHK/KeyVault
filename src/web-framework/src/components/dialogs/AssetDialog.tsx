@@ -1,0 +1,96 @@
+import type { Asset, Staff } from "@/lib/inventory";
+import { choices, InventoryEditorDialog } from "./InventoryEditorDialog";
+
+export function AssetDialog({
+  record,
+  defaultKind = "Laptop",
+  staff,
+  onClose,
+}: {
+  record?: Asset;
+  defaultKind?: Asset["kind"];
+  staff: Staff[];
+  onClose: () => void;
+}) {
+  return (
+    <InventoryEditorDialog
+      noun="asset"
+      resource="assets"
+      recordId={record?.id}
+      description="The details that keep your inventory connected."
+      initialValues={{
+        name: record?.name ?? "",
+        tag: record?.tag ?? "",
+        kind: record?.kind ?? defaultKind,
+        model: record?.model ?? "",
+        serial: record?.serial ?? "",
+        status: record?.status ?? "Available",
+        location: record?.location ?? "",
+        owner_id: record?.owner_id == null ? "" : String(record.owner_id),
+        purchase_date: record?.purchase_date ?? "",
+        warranty_date: record?.warranty_date ?? "",
+        notes: record?.notes ?? "",
+      }}
+      updateValues={(values, name) => {
+        if (name === "owner_id" && values.owner_id && values.status === "Available")
+          values.status = "In use";
+        if (name === "status" && ["Available", "Retired"].includes(values.status))
+          values.owner_id = "";
+        return values;
+      }}
+      getPayload={(values) => ({
+        ...values,
+        owner_id: values.owner_id ? Number(values.owner_id) : null,
+      })}
+      onClose={onClose}
+    >
+      {({ values, set, input, select }) => (
+        <>
+          {input("name", "Name *", { required: true, placeholder: 'e.g. MacBook Pro 14"' })}
+          {input("tag", "Asset tag *", {
+            required: true,
+            placeholder: "e.g. KV-LT-011",
+            maxLength: 60,
+          })}
+          {select(
+            "kind",
+            "Category *",
+            choices(["Laptop", "Desktop", "Server", "Mobile", "Network"])
+          )}
+          {select("status", "Status *", choices(["Available", "In use", "Maintenance", "Retired"]))}
+          {input("model", "Model / specifications", { placeholder: "e.g. Apple M3 / 16 GB" })}
+          {input("serial", "Serial number")}
+          {input("location", "Location *", { required: true, placeholder: "e.g. Hong Kong HQ" })}
+          {select(
+            "owner_id",
+            "Assigned to",
+            [
+              { value: "", label: "Unassigned" },
+              ...staff.map((person) => ({
+                value: String(person.id),
+                label: `${person.name} - ${person.department}`,
+              })),
+            ],
+            false
+          )}
+          {input("purchase_date", "Purchase date", { type: "date" })}
+          {input("warranty_date", "Warranty expires", { type: "date" })}
+          <label className="kv-form-full">
+            Notes
+            <textarea
+              value={values.notes}
+              onChange={(event) => set("notes", event.target.value)}
+              rows={3}
+              maxLength={4000}
+              placeholder="Anything worth knowing about this asset..."
+            />
+          </label>
+          <p className="kv-form-hint kv-form-full">
+            Assigning an available asset marks it as in use. Setting an asset to available or
+            retired clears its owner. Every ownership change is recorded.
+          </p>
+        </>
+      )}
+    </InventoryEditorDialog>
+  );
+}

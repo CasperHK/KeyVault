@@ -39,7 +39,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast, Toaster } from "sonner";
-import { Avatar, assetIcons, Badge, Brand, Modal } from "@/components/keyvault-ui";
+import { BaseDialog } from "@/components/dialogs/BaseDialog";
+import { Avatar, assetIcons, Badge, Brand } from "@/components/keyvault-ui";
 import { InventoryForm, type Editor } from "@/components/inventory-form";
 import { StaffDetail } from "@/components/staff-detail";
 import { clearAuth, logout, me } from "@/lib/auth";
@@ -181,6 +182,7 @@ function DashboardContent() {
   const [mobileNav, setMobileNav] = useState(false);
   const [help, setHelp] = useState(false);
   const [notifications, setNotifications] = useState(false);
+  const [notificationAsset, setNotificationAsset] = useState<Asset | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const data = inventory.data;
   const isStaffDetail = view === "staff" && staff_id !== undefined;
@@ -193,7 +195,6 @@ function DashboardContent() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["inventory"] });
-      setDeleting(null);
       toast.success("Record removed from your workspace.");
     },
   });
@@ -1148,49 +1149,49 @@ function DashboardContent() {
         />
       )}
       {deleting && (
-        <Modal
+        <BaseDialog
           title={`Remove ${deleting.name}?`}
           description="This permanently deletes the inventory record. This action cannot be undone."
+          open={!deleteMutation.isSuccess}
+          dismissible={!deleteMutation.isPending}
           onClose={() => {
             if (!deleteMutation.isPending) setDeleting(null);
           }}
         >
-          <div className="kv-delete-content">
-            <p>
-              Reassign any owned assets, service responsibilities or hosted services first. Past
-              activity will remain in the log.
-            </p>
-            {deleteMutation.isError && (
-              <div className="kv-error" role="alert">
-                {errorMessage(deleteMutation.error)}
+          {(close) => (
+            <div className="kv-delete-content">
+              <p>
+                Reassign any owned assets, service responsibilities or hosted services first. Past
+                activity will remain in the log.
+              </p>
+              {deleteMutation.isError && (
+                <div className="kv-error" role="alert">
+                  {errorMessage(deleteMutation.error)}
+                </div>
+              )}
+              <div className="kv-modal-actions">
+                <button className="kv-button" disabled={deleteMutation.isPending} onClick={close}>
+                  Keep record
+                </button>
+                <button
+                  className="kv-button danger"
+                  disabled={deleteMutation.isPending}
+                  onClick={() => deleteMutation.mutate()}
+                >
+                  {deleteMutation.isPending ? (
+                    <Loader2 size={16} className="kv-spin" />
+                  ) : (
+                    <Trash2 size={16} />
+                  )}
+                  Remove record
+                </button>
               </div>
-            )}
-            <div className="kv-modal-actions">
-              <button
-                className="kv-button"
-                disabled={deleteMutation.isPending}
-                onClick={() => setDeleting(null)}
-              >
-                Keep record
-              </button>
-              <button
-                className="kv-button danger"
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate()}
-              >
-                {deleteMutation.isPending ? (
-                  <Loader2 size={16} className="kv-spin" />
-                ) : (
-                  <Trash2 size={16} />
-                )}
-                Remove record
-              </button>
             </div>
-          </div>
-        </Modal>
+          )}
+        </BaseDialog>
       )}
       {help && (
-        <Modal
+        <BaseDialog
           title="A little help getting organized."
           description="One workspace for your company's IT inventory."
           onClose={() => setHelp(false)}
@@ -1234,13 +1235,20 @@ function DashboardContent() {
               </a>
             )}
           </div>
-        </Modal>
+        </BaseDialog>
       )}
       {notifications && (
-        <Modal
+        <BaseDialog
           title="A little attention."
           description="Warranty reminders and devices that need a check-in."
-          onClose={() => setNotifications(false)}
+          open={!notificationAsset}
+          onClose={() => {
+            setNotifications(false);
+            if (notificationAsset) {
+              editAsset(notificationAsset);
+              setNotificationAsset(null);
+            }
+          }}
         >
           <div className="kv-notification-list">
             {attentionCount === 0 ? (
@@ -1258,8 +1266,7 @@ function DashboardContent() {
                 <button
                   key={asset.id}
                   onClick={() => {
-                    setNotifications(false);
-                    editAsset(asset);
+                    setNotificationAsset(asset);
                   }}
                 >
                   <span className="kv-icon-tile amber">
@@ -1280,7 +1287,7 @@ function DashboardContent() {
               ))
             )}
           </div>
-        </Modal>
+        </BaseDialog>
       )}
     </div>
   );

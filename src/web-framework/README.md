@@ -84,6 +84,26 @@ server. No demo credentials are displayed in a production build.
 
 ## What works
 
+The root layout includes [ScrollTopButton](src/components/buttons/ScrollTopButton.tsx)
+on every route, including public, login, inventory and admin pages. It appears
+after scrolling more than 300px, shows page progress in its ring and smoothly
+returns to the top (instantly with reduced motion). Its styles are scoped to the
+button, and admin pages reserve space above the floating quick-access control.
+
+Inventory pop-ups share [BaseDialog](src/components/dialogs/BaseDialog.tsx) for
+consistent headers, descriptions, close controls, animated entry/exit and native
+keyboard/focus behavior. Animations respect reduced-motion preferences. Keep a
+dialog mounted until `onClose` runs after its exit animation; use `open={false}`
+for programmatic dismissal or the render-child `close` callback for custom
+buttons. Set `dismissible={false}` while a save or deletion is pending.
+
+[AssetDialog](src/components/dialogs/AssetDialog.tsx),
+[StaffDialog](src/components/dialogs/StaffDialog.tsx) and
+[ServiceDialog](src/components/dialogs/ServiceDialog.tsx) own their resource-specific
+fields and payloads for adding and editing records. They reuse
+[InventoryEditorDialog](src/components/dialogs/InventoryEditorDialog.tsx) for
+submission, validation errors, cache refresh and form actions.
+
 - Add, edit and delete laptops, desktops, servers, phones and network devices.
 - Record tags, specifications, serials, locations, purchase/warranty dates and notes.
 - Register and manage staff, departments and job titles.
