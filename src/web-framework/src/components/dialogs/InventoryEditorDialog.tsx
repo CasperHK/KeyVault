@@ -1,3 +1,4 @@
+import { t, useLocale } from "@/lib/i18n";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Save } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -25,7 +26,7 @@ interface FormFields {
   ) => ReactNode;
 }
 
-export const choices = (items: string[]) => items.map((item) => ({ value: item, label: item }));
+export const choices = (items: string[]) => items.map((item) => ({ value: item, label: t(item) }));
 
 export function InventoryEditorDialog({
   noun,
@@ -38,7 +39,7 @@ export function InventoryEditorDialog({
   children,
   onClose,
 }: {
-  noun: string;
+  noun: "asset" | "staff member" | "service";
   resource: "assets" | "staff" | "services";
   recordId?: number;
   description: string;
@@ -48,6 +49,8 @@ export function InventoryEditorDialog({
   children: (fields: FormFields) => ReactNode;
   onClose: () => void;
 }) {
+  useLocale();
+
   const queryClient = useQueryClient();
   const [values, setValues] = useState(initialValues);
   const set = (name: string, value: string) =>
@@ -68,8 +71,8 @@ export function InventoryEditorDialog({
       await queryClient.invalidateQueries({ queryKey: ["inventory"] });
       toast.success(
         recordId
-          ? "Changes saved. Everything is up to date."
-          : `${noun[0].toUpperCase()}${noun.slice(1)} added to your workspace.`
+          ? t("Changes saved. Everything is up to date.")
+          : t(`${noun[0].toUpperCase()}${noun.slice(1)} added to your workspace.`)
       );
     },
   });
@@ -120,7 +123,7 @@ export function InventoryEditorDialog({
 
   return (
     <BaseDialog
-      title={`${recordId ? "Manage" : "Add"} ${noun}`}
+      title={t(`${recordId ? "Manage" : "Add"} ${noun}`)}
       description={description}
       open={!mutation.isSuccess}
       dismissible={!mutation.isPending}
@@ -147,11 +150,11 @@ export function InventoryEditorDialog({
               onClick={close}
               disabled={mutation.isPending}
             >
-              Cancel
+              {t("Cancel")}
             </button>
             <button className="kv-button primary" disabled={mutation.isPending}>
               {mutation.isPending ? <Loader2 size={16} className="kv-spin" /> : <Save size={16} />}
-              {recordId ? "Save changes" : `Add ${noun}`}
+              {recordId ? t("Save changes") : t(`Add ${noun}`)}
             </button>
           </div>
         </form>

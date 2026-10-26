@@ -1,5 +1,6 @@
 import axios from "axios";
 import { api } from "./api";
+import { t } from "./i18n";
 
 export interface Staff {
   id: number;
@@ -34,6 +35,20 @@ export interface Service {
   environment: "Production" | "Staging" | "Development";
   status: "Running" | "Maintenance" | "Stopped";
   port: number;
+  installation_path: string;
+  health_url: string;
+  health_status: "" | "Healthy" | "Unhealthy" | "Unknown";
+  checked_at: string | null;
+  http_status: number;
+  response_time_ms: number;
+  check_error: string;
+}
+
+export function serviceHealth(service: Service, now = Date.now()): string {
+  if (!service.checked_at) return "Unknown";
+  const age = now - new Date(service.checked_at).getTime();
+  if (!Number.isFinite(age) || age < 0 || age >= 5 * 60_000) return "Unknown";
+  return service.health_status || "Unknown";
 }
 
 export interface InventoryEvent {
@@ -57,21 +72,23 @@ export async function getInventory(): Promise<Inventory> {
 
 export function errorMessage(error: unknown): string {
   if (axios.isAxiosError<{ error?: { message?: string } }>(error)) {
-    if (error.response?.status === 401) return "Your session has expired. Please sign in again.";
-    return (
-      error.response?.data.error?.message ||
-      "Unable to connect. Check that the Go API is running and try again."
+    if (error.response?.status === 401 && !error.response.data?.error?.message) {
+      return t("Your session has expired. Please sign in again.");
+    }
+    return t(
+      error.response?.data?.error?.message ||
+        "Unable to connect. Check that the Go API is running and try again."
     );
   }
-  return error instanceof Error ? error.message : "Something went wrong. Please try again.";
+  return t(error instanceof Error ? error.message : "Something went wrong. Please try again.");
 }
 
 export function downloadCSV(name: string, rows: (string | number)[][]) {
   const content = rows
-    .map((row) =>
+    .map((row, index) =>
       row
         .map((value) => {
-          let text = String(value);
+          let text = index === 0 ? t(String(value)) : String(value);
           if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
           return `"${text.replace(/"/g, '""')}"`;
         })

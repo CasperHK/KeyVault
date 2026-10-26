@@ -1150,6 +1150,118 @@
 }
 
 /* Workspace shell */
+.kv .kv-language-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--kv-ink);
+  flex-shrink: 0;
+  font-size: 13px;
+}
+.kv .kv-language-selector select {
+  width: auto;
+  min-height: 36px;
+  padding: 6px 22px 6px 8px;
+  border: 1px solid #ddd4e8;
+  border-radius: 6px;
+  background-color: #fff;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.kv .kv-language-selector select:focus-visible {
+  outline: 2px solid var(--kv-primary, #8061b9);
+  outline-offset: 2px;
+}
+.kv .kv-public-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.kv .kv-login-language {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+}
+html[lang="zh-Hant"] .kv {
+  font-family: "DM Sans Variable", "Microsoft JhengHei", "PingFang TC", sans-serif;
+}
+html[lang="zh-Hant"] .kv h1,
+html[lang="zh-Hant"] .kv h2,
+html[lang="zh-Hant"] .kv .kv-serif {
+  font-family: "Manrope Variable", "Microsoft JhengHei", "PingFang TC", sans-serif;
+  word-break: normal;
+}
+@media (max-width: 640px) {
+  .kv .kv-public-nav {
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+  .kv .kv-public-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .kv .kv-topbar {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 68px;
+    gap: 8px;
+    padding-block: 12px;
+  }
+}
+.kv .kv-service-detail {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.kv .kv-service-panel {
+  min-width: 0;
+}
+.kv .kv-service-panel .kv-card-heading {
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.kv .kv-service-panel h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.kv .kv-service-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 22px;
+  margin: 0;
+  padding: 22px;
+}
+.kv .kv-service-fields div {
+  min-width: 0;
+}
+.kv .kv-service-fields dt {
+  color: var(--kv-muted);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.kv .kv-service-fields dd {
+  margin: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.kv .kv-service-note {
+  margin: 0 22px 22px;
+  padding: 18px;
+  border-radius: 8px;
+  background: #f6f3fa;
+  color: var(--kv-ink);
+  overflow-wrap: anywhere;
+}
+.kv .kv-service-note p {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.kv .kv-service-panel > .kv-error {
+  margin: 0 22px;
+}
 .kv-staff-detail {
   display: grid;
   gap: 20px;

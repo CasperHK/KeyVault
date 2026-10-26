@@ -1,3 +1,4 @@
+import { t, useLocale } from "@/lib/i18n";
 import type { Asset, Staff } from "@/lib/inventory";
 import { choices, InventoryEditorDialog } from "./InventoryEditorDialog";
 
@@ -12,12 +13,14 @@ export function AssetDialog({
   staff: Staff[];
   onClose: () => void;
 }) {
+  useLocale();
+
   return (
     <InventoryEditorDialog
       noun="asset"
       resource="assets"
       recordId={record?.id}
-      description="The details that keep your inventory connected."
+      description={t("The details that keep your inventory connected.")}
       initialValues={{
         name: record?.name ?? "",
         tag: record?.tag ?? "",
@@ -46,26 +49,33 @@ export function AssetDialog({
     >
       {({ values, set, input, select }) => (
         <>
-          {input("name", "Name *", { required: true, placeholder: 'e.g. MacBook Pro 14"' })}
-          {input("tag", "Asset tag *", {
+          {input("name", t("Name *"), { required: true, placeholder: t('e.g. MacBook Pro 14"') })}
+          {input("tag", t("Asset tag *"), {
             required: true,
-            placeholder: "e.g. KV-LT-011",
+            placeholder: t("e.g. KV-LT-011"),
             maxLength: 60,
           })}
           {select(
             "kind",
-            "Category *",
+            t("Category *"),
             choices(["Laptop", "Desktop", "Server", "Mobile", "Network"])
           )}
-          {select("status", "Status *", choices(["Available", "In use", "Maintenance", "Retired"]))}
-          {input("model", "Model / specifications", { placeholder: "e.g. Apple M3 / 16 GB" })}
-          {input("serial", "Serial number")}
-          {input("location", "Location *", { required: true, placeholder: "e.g. Hong Kong HQ" })}
+          {select(
+            "status",
+            t("Status *"),
+            choices(["Available", "In use", "Maintenance", "Retired"])
+          )}
+          {input("model", t("Model / specifications"), { placeholder: t("e.g. Apple M3 / 16 GB") })}
+          {input("serial", t("Serial number"))}
+          {input("location", t("Location *"), {
+            required: true,
+            placeholder: t("e.g. Hong Kong HQ"),
+          })}
           {select(
             "owner_id",
-            "Assigned to",
+            t("Assigned to"),
             [
-              { value: "", label: "Unassigned" },
+              { value: "", label: t("Unassigned") },
               ...staff.map((person) => ({
                 value: String(person.id),
                 label: `${person.name} - ${person.department}`,
@@ -73,21 +83,22 @@ export function AssetDialog({
             ],
             false
           )}
-          {input("purchase_date", "Purchase date", { type: "date" })}
-          {input("warranty_date", "Warranty expires", { type: "date" })}
+          {input("purchase_date", t("Purchase date"), { type: "date" })}
+          {input("warranty_date", t("Warranty expires"), { type: "date" })}
           <label className="kv-form-full">
-            Notes
+            {t("Notes")}
             <textarea
               value={values.notes}
               onChange={(event) => set("notes", event.target.value)}
               rows={3}
               maxLength={4000}
-              placeholder="Anything worth knowing about this asset..."
+              placeholder={t("Anything worth knowing about this asset...")}
             />
           </label>
           <p className="kv-form-hint kv-form-full">
-            Assigning an available asset marks it as in use. Setting an asset to available or
-            retired clears its owner. Every ownership change is recorded.
+            {t(
+              "Assigning an available asset marks it as in use. Setting an asset to available or retired clears its owner. Every ownership change is recorded."
+            )}
           </p>
         </>
       )}

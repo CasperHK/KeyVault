@@ -218,11 +218,20 @@ func (h *InventoryHandler) SaveService(c *gin.Context) {
 		Environment         string  `json:"environment" binding:"required,oneof=Production Staging Development"`
 		Status              string  `json:"status" binding:"required,oneof=Running Maintenance Stopped"`
 		Port                uint    `json:"port" binding:"lte=65535"`
+		InstallationPath    *string `json:"installation_path" binding:"omitempty,max=1000"`
+		HealthURL           *string `json:"health_url" binding:"omitempty,max=2000"`
 		ResponsibleStaffIDs *[]uint `json:"responsible_staff_ids" binding:"omitempty,max=1000,dive,gt=0"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil || strings.TrimSpace(input.Name) == "" {
 		respond.Validation(c, "Enter valid service details, host, environment and port (0-65535)", nil)
 		return
+	}
+	if input.HealthURL != nil {
+		*input.HealthURL = strings.TrimSpace(*input.HealthURL)
+		if *input.HealthURL != "" && !validServiceHealthURL(*input.HealthURL) {
+			respond.Validation(c, "Health URL must be an absolute HTTP(S) URL without credentials or a fragment", nil)
+			return
+		}
 	}
 	var service models.InventoryService
 	err := h.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
@@ -263,6 +272,14 @@ func (h *InventoryHandler) SaveService(c *gin.Context) {
 		}
 		service.Name, service.Description, service.HostID = strings.TrimSpace(input.Name), input.Description, input.HostID
 		service.Environment, service.Status, service.Port = input.Environment, input.Status, input.Port
+		if input.InstallationPath != nil {
+			service.InstallationPath = strings.TrimSpace(*input.InstallationPath)
+		}
+		if input.HealthURL != nil && service.HealthURL != *input.HealthURL {
+			service.HealthURL = *input.HealthURL
+			service.HealthStatus, service.CheckError = "", ""
+			service.CheckedAt, service.HTTPStatus, service.ResponseTimeMS = nil, 0, 0
+		}
 		if err := tx.Omit("ResponsibleStaff").Save(&service).Error; err != nil {
 			return err
 		}

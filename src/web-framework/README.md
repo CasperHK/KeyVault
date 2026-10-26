@@ -78,11 +78,44 @@ server. No demo credentials are displayed in a production build.
 | `/dashboard?view=staff&staff_id=1` | Shareable staff profile and currently assigned devices |
 | `/dashboard?view=ownership` | Ownership assignment and handovers |
 | `/dashboard?view=services` | Services and their host devices/servers |
+| `/dashboard?view=services&service_id=1` | Shareable service installation and HTTP health details |
 | `/dashboard?view=activity` | Latest 100 inventory events |
 | `/admin/dashboard` | Generated Grit administration |
 | `/api/v1/inventory` | Authenticated inventory API |
 
 ## What works
+
+### Languages
+
+The main KeyVault experience supports **English** and **Traditional Chinese**
+(`zh-Hant`): introduction, login, inventory navigation and tables, staff/service
+details, inventory dialogs, accessibility labels, known inventory API errors,
+and CSV headings. Use the language selector on the introduction page, login page,
+or dashboard top bar. Switching languages preserves unsaved forms and filters.
+
+First-time visitors follow their browser's supported language preferences
+(English or Traditional Chinese variants such as `zh-TW`/`zh-HK`); unsupported
+languages fall back to English. A selection is saved locally as
+`keyvault.language`, survives reloads and sign-out, and synchronizes across tabs.
+If browser storage is unavailable, the choice still works for the current session
+and a warning is logged. Dates and numbers use the selected locale, and the
+document language updates for assistive technology.
+
+Translations live in [zh-Hant.ts](src/lib/messages/zh-Hant.ts), with English
+source messages as keys. Use `t("Complete sentence with {name}", { name })` and
+subscribe components with `useLocale()` (or `useT()` for a locale-bound translator
+used in memoized computations); do not concatenate translated sentence
+fragments. Add new languages through [i18n.ts](src/lib/i18n.ts) and the language
+selector. Missing/unknown messages retain their English text.
+
+Only presentation changes: API enums, route/query parameters, identifiers, user
+names, descriptions, departments, paths, URLs, and historical activity messages
+remain unchanged. The generated Grit administration, blog and account-recovery
+pages are outside this translation scope and remain in English.
+
+Run `npm run test:i18n` for locale detection, persistence, interpolation, catalogue
+coverage and placeholder regression checks (Node's test runner and the existing
+TypeScript compiler; no additional dependencies).
 
 The root layout includes [ScrollTopButton](src/components/buttons/ScrollTopButton.tsx)
 on every route, including public, login, inventory and admin pages. It appears
@@ -113,6 +146,23 @@ submission, validation errors, cache refresh and form actions.
   assigned device to manage it; ownership changes refresh the profile.
 - Assign, reassign or release device ownership with persisted change history.
 - Register services against a host, with environment, status and optional port.
+- Open a service name in the service list or staff profiles to review its host,
+  physical location, saved installation path, responsible staff and HTTP diagnostics.
+  Add a read-only HTTP(S) health URL in the service editor. The detail page runs
+  checks every minute while open and visible, and offers **Check now**.
+  Results persist in SQLite; results five minutes or older display as **Unknown**.
+  Changing or clearing the URL resets the previous result.
+  The authenticated ADMIN/EDITOR-only `POST /api/v1/inventory/services/:id/check`
+  performs a real server-side GET with the existing safe HTTP client (10-second
+  timeout, redirect validation, normal TLS verification). HTTP 2xx is healthy;
+  other statuses and connection failures are unhealthy. Blocked destinations
+  show Unknown with an explicit explanation. Private, loopback and metadata
+  addresses are not supported; do not disable SSRF protections for internal hosts.
+  Do not put credentials or secrets in health URLs. Response bodies are not stored.
+  Checks do not run unattended after leaving the page, and only the latest result
+  is retained. Installation paths remain manually maintained inventory data.
+  This is an availability-monitoring foundation for the SIEM roadmap, not
+  security-event ingestion, host error collection or compromise detection.
 - Assign multiple responsible staff to each service in its add/edit form.
   Staff profiles list explicitly responsible services separately from services
   hosted on owned devices. Service search and CSV exports include responsible
@@ -138,7 +188,8 @@ Service responsibility is independent of device ownership. Existing services
 start unassigned; no responsibilities are inferred from a host's owner.
 Remove or reassign a staff member's service responsibilities before deleting
 their record. Deleting a service removes its responsibility links. Restart the
-Go API after updating so auto-migration creates the new relationship table.
+Go API after updating so auto-migration creates the relationship table and adds
+the service installation and HTTP monitoring columns without removing existing data.
 
 ## Verification
 

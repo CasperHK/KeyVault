@@ -17,6 +17,7 @@ func init() {
 		group.PUT("/staff/:id", h.SaveStaff)
 		group.POST("/services", h.SaveService)
 		group.PUT("/services/:id", h.SaveService)
+		group.POST("/services/:id/check", h.CheckService)
 		group.DELETE("/:resource/:id", h.Delete)
 	})
 }

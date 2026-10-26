@@ -40,6 +40,13 @@ type InventoryService struct {
 	Environment      string           `json:"environment"`
 	Status           string           `json:"status"`
 	Port             uint             `json:"port"`
+	InstallationPath string           `json:"installation_path"`
+	HealthURL        string           `json:"health_url"`
+	HealthStatus     string           `json:"health_status"`
+	CheckedAt        *time.Time       `json:"checked_at"`
+	HTTPStatus       int              `json:"http_status"`
+	ResponseTimeMS   int64            `json:"response_time_ms"`
+	CheckError       string           `json:"check_error"`
 	CreatedAt        time.Time        `json:"created_at"`
 	UpdatedAt        time.Time        `json:"updated_at"`
 }

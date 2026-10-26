@@ -1,3 +1,4 @@
+import { formatLocale, t, useLocale, useT } from "@/lib/i18n";
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
@@ -43,12 +44,15 @@ import { BaseDialog } from "@/components/dialogs/BaseDialog";
 import { Avatar, assetIcons, Badge, Brand } from "@/components/keyvault-ui";
 import { InventoryForm, type Editor } from "@/components/inventory-form";
 import { StaffDetail } from "@/components/staff-detail";
+import { ServiceDetail } from "@/components/service-detail";
+import { LanguageSelector } from "@/components/language-selector";
 import { clearAuth, logout, me } from "@/lib/auth";
 import { api } from "@/lib/api";
 import {
   downloadCSV,
   errorMessage,
   getInventory,
+  serviceHealth,
   type Asset,
   type Inventory,
   type Service,
@@ -120,8 +124,19 @@ const nav = [
 ] as const;
 
 export const Route = createFileRoute("/dashboard")({
-  validateSearch: (search: Record<string, unknown>): { view: View; staff_id?: number } => {
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { view: View; staff_id?: number; service_id?: number } => {
     const view = views.find((view) => view === search.view) || "overview";
+    if (view === "services" && search.service_id !== undefined) {
+      const serviceID = Number(search.service_id);
+      if (!Number.isSafeInteger(serviceID) || serviceID <= 0) {
+        throw new Error(
+          "Service ID must be a positive integer. Open hosted services to choose a service."
+        );
+      }
+      return { view, service_id: serviceID };
+    }
     if (view !== "staff" || search.staff_id === undefined) return { view };
     const staffID = Number(search.staff_id);
     if (!Number.isSafeInteger(staffID) || staffID <= 0) {
@@ -144,30 +159,38 @@ export const Route = createFileRoute("/dashboard")({
       throw error;
     }
   },
-  errorComponent: ({ error, reset }) => (
-    <div className="kv kv-route-error">
-      <ShieldCheck size={38} />
-      <h1>We couldn't open your workspace.</h1>
-      <p>{errorMessage(error)}</p>
-      <button className="kv-button primary" onClick={reset}>
-        Try again
-      </button>
-      <Link to="/login" className="kv-button">
-        Back to sign in
-      </Link>
-    </div>
-  ),
+  errorComponent: WorkspaceError,
   component: Dashboard,
 });
 
+function WorkspaceError({ error, reset }: { error: unknown; reset: () => void }) {
+  useLocale();
+  return (
+    <div className="kv kv-route-error">
+      <LanguageSelector />
+      <ShieldCheck size={38} />
+      <h1>{t("We couldn't open your workspace.")}</h1>
+      <p>{errorMessage(error)}</p>
+      <button className="kv-button primary" onClick={reset}>
+        {t("Try again")}
+      </button>
+      <Link to="/login" className="kv-button">
+        {t("Back to sign in")}
+      </Link>
+    </div>
+  );
+}
+
 function Dashboard() {
-  const { view, staff_id } = Route.useSearch();
-  return <DashboardContent key={`${view}-${staff_id || ""}`} />;
+  const { view, staff_id, service_id } = Route.useSearch();
+  return <DashboardContent key={`${view}-${staff_id || ""}-${service_id || ""}`} />;
 }
 
 function DashboardContent() {
+  const t = useT();
+
   const { user } = Route.useRouteContext();
-  const { view, staff_id } = Route.useSearch();
+  const { view, staff_id, service_id } = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const inventory = useQuery({ queryKey: ["inventory"], queryFn: getInventory, staleTime: 15_000 });
@@ -186,6 +209,10 @@ function DashboardContent() {
   const [signingOut, setSigningOut] = useState(false);
   const data = inventory.data;
   const isStaffDetail = view === "staff" && staff_id !== undefined;
+  const isServiceDetail = view === "services" && service_id !== undefined;
+  const selectedService = isServiceDetail
+    ? data?.services.find((service) => service.id === service_id)
+    : undefined;
   const selectedStaff = isStaffDetail
     ? data?.staff.find((person) => person.id === staff_id)
     : undefined;
@@ -195,7 +222,7 @@ function DashboardContent() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["inventory"] });
-      toast.success("Record removed from your workspace.");
+      toast.success(t("Record removed from your workspace."));
     },
   });
   const owner = (id: number | null) => data?.staff.find((person) => person.id === id);
@@ -211,13 +238,15 @@ function DashboardContent() {
         asset.name,
         asset.tag,
         asset.kind,
+        t(asset.kind),
+        t(asset.status),
         asset.model,
         asset.serial,
         asset.location,
-        person?.name || "Unassigned",
+        person?.name || t("Unassigned"),
       ].some((value) => value.toLowerCase().includes(term));
     });
-  }, [data, view, category, status, search]);
+  }, [data, view, category, status, search, t]);
   const filteredStaff =
     data?.staff.filter((person) =>
       `${person.name} ${person.email} ${person.department} ${person.job_title}`
@@ -226,7 +255,7 @@ function DashboardContent() {
     ) || [];
   const filteredServices =
     data?.services.filter((service) =>
-      `${service.name} ${service.description} ${service.environment} ${service.responsible_staff.map((person) => person.name).join(" ")} ${data.assets.find((asset) => asset.id === service.host_id)?.name}`
+      `${service.name} ${service.description} ${service.environment} ${t(service.environment)} ${t(service.status)} ${service.installation_path} ${service.health_url} ${service.responsible_staff.map((person) => person.name).join(" ")} ${data.assets.find((asset) => asset.id === service.host_id)?.name}`
         .toLowerCase()
         .includes(search.toLowerCase())
     ) || [];
@@ -293,15 +322,27 @@ function DashboardContent() {
                 "Status",
                 "Port",
                 "Responsible staff",
+                "Installation path",
+                "Health URL",
+                "Current HTTP health",
+                "Last checked",
+                "Last HTTP status",
+                "Last HTTP error",
               ],
               ...filteredServices.map((service) => [
                 service.name,
                 service.description,
                 data.assets.find((asset) => asset.id === service.host_id)?.tag || "",
-                service.environment,
-                service.status,
+                t(service.environment),
+                t(service.status),
                 service.port,
                 service.responsible_staff.map((person) => person.name).join("; "),
+                service.installation_path,
+                service.health_url,
+                t(serviceHealth(service)),
+                service.checked_at || "",
+                service.http_status,
+                t(service.check_error),
               ]),
             ]
           : view === "activity"
@@ -309,7 +350,7 @@ function DashboardContent() {
                 ["Time", "Category", "Activity", "Actor"],
                 ...filteredEvents.map((event) => [
                   event.created_at,
-                  event.category,
+                  t(event.category),
                   event.message,
                   event.actor,
                 ]),
@@ -331,11 +372,11 @@ function DashboardContent() {
                 ...filteredAssets.map((asset) => [
                   asset.name,
                   asset.tag,
-                  asset.kind,
+                  t(asset.kind),
                   asset.model,
                   asset.serial,
-                  asset.status,
-                  owner(asset.owner_id)?.name || "Unassigned",
+                  t(asset.status),
+                  owner(asset.owner_id)?.name || t("Unassigned"),
                   asset.location,
                   asset.purchase_date,
                   asset.warranty_date,
@@ -343,7 +384,7 @@ function DashboardContent() {
                 ]),
               ];
     downloadCSV(`keyvault-${view}`, rows);
-    toast.success(`Exported ${rows.length - 1} records.`);
+    toast.success(t("Exported {count} records.", { count: rows.length - 1 }));
   }
   async function signOut() {
     setSigningOut(true);
@@ -363,11 +404,11 @@ function DashboardContent() {
   const editAsset = (asset: Asset) => setEditor({ kind: "asset", record: asset });
   return (
     <div className="kv kv-app">
-      <Toaster position="bottom-right" richColors />
+      <Toaster position="bottom-right" richColors containerAriaLabel={t("Notifications")} />
       {mobileNav && (
         <button
           className="kv-sidebar-overlay"
-          aria-label="Close navigation"
+          aria-label={t("Close navigation")}
           onClick={() => setMobileNav(false)}
         />
       )}
@@ -380,17 +421,17 @@ function DashboardContent() {
             <Building2 size={19} />
           </span>
           <span>
-            <strong>Company workspace</strong>
-            <small>IT inventory management</small>
+            <strong>{t("Company workspace")}</strong>
+            <small>{t("IT inventory management")}</small>
           </span>
           <ChevronDown size={14} />
         </button>
-        <span className="kv-nav-caption">WORKSPACE</span>
-        <nav aria-label="Workspace navigation">
+        <span className="kv-nav-caption">{t("WORKSPACE")}</span>
+        <nav aria-label={t("Workspace navigation")}>
           {nav.map((item, index) => (
             <div key={item.view}>
               {index === 4 && (
-                <span className="kv-nav-caption kv-nav-gap">PEOPLE & CONNECTIONS</span>
+                <span className="kv-nav-caption kv-nav-gap">{t("PEOPLE & CONNECTIONS")}</span>
               )}
               <Link
                 to="/dashboard"
@@ -398,7 +439,7 @@ function DashboardContent() {
                 className={`kv-nav-item ${view === item.view ? "active" : ""}`}
               >
                 <item.icon size={18} />
-                <span>{viewDetails[item.view].label}</span>
+                <span>{t(viewDetails[item.view].label)}</span>
                 {item.view === "devices" && data && <small>{data.assets.length}</small>}
                 {item.view === "overview" && <span className="kv-nav-active-dot" />}
               </Link>
@@ -412,20 +453,20 @@ function DashboardContent() {
             className={`kv-nav-item ${view === "activity" ? "active" : ""}`}
           >
             <Activity size={18} />
-            Activity log
+            {t("Activity log")}
           </Link>
           <button className="kv-nav-item" onClick={() => setHelp(true)}>
             <CircleHelp size={18} />
-            Help & getting started
+            {t("Help & getting started")}
             <ArrowUpRight size={14} />
           </button>
           <div className="kv-sidebar-tip">
             <span>
-              <Sparkles size={16} /> A little tip
+              <Sparkles size={16} /> {t("A little tip")}
             </span>
-            <p>A clear owner makes every device a little easier to manage.</p>
+            <p>{t("A clear owner makes every device a little easier to manage.")}</p>
             <Link to="/dashboard" search={{ view: "ownership" }}>
-              Connect your inventory <ArrowRight size={14} />
+              {t("Connect your inventory")} <ArrowRight size={14} />
             </Link>
           </div>
           <div className="kv-profile">
@@ -434,13 +475,13 @@ function DashboardContent() {
               <strong>
                 {user.first_name} {user.last_name}
               </strong>
-              <small>{user.role === "ADMIN" ? "Workspace admin" : "Inventory editor"}</small>
+              <small>{user.role === "ADMIN" ? t("Workspace admin") : t("Inventory editor")}</small>
             </span>
             <button
               className="kv-icon-button"
               onClick={signOut}
               disabled={signingOut}
-              aria-label="Sign out"
+              aria-label={t("Sign out")}
             >
               {signingOut ? <Loader2 size={17} className="kv-spin" /> : <LogOut size={17} />}
             </button>
@@ -453,25 +494,28 @@ function DashboardContent() {
             <button
               className="kv-icon-button kv-mobile-menu"
               onClick={() => setMobileNav(true)}
-              aria-label="Open navigation"
+              aria-label={t("Open navigation")}
             >
               <Menu size={21} />
             </button>
             <span className="kv-breadcrumb-icon">
               <LayoutDashboard size={17} />
             </span>
-            <span>Workspace</span>
+            <span>{t("Workspace")}</span>
             <ChevronRight size={13} />
-            <strong>{viewDetails[view].label}</strong>
+            <strong>{t(viewDetails[view].label)}</strong>
           </div>
           <div>
+            <LanguageSelector />
             <span className="kv-topbar-secure">
-              <span className="kv-live-dot" /> Private workspace
+              <span className="kv-live-dot" /> {t("Private workspace")}
             </span>
             <button
               className="kv-icon-button kv-notification-button"
               onClick={() => setNotifications(true)}
-              aria-label={`Notifications: ${attentionCount} assets need attention`}
+              aria-label={t("Notifications: {count} assets need attention", {
+                count: attentionCount,
+              })}
             >
               <Bell size={19} />
               {attentionCount > 0 && <i />}
@@ -484,12 +528,12 @@ function DashboardContent() {
           <div className="kv-welcome-row">
             <span className="kv-overline">
               {view === "overview"
-                ? `YOUR WORKSPACE, AT A GLANCE`
-                : `WORKSPACE / ${viewDetails[view].label.toUpperCase()}`}
+                ? t("YOUR WORKSPACE, AT A GLANCE")
+                : `${t("WORKSPACE")} / ${t(viewDetails[view].label).toUpperCase()}`}
             </span>
             <span className="kv-today">
               <Clock3 size={14} />
-              {new Intl.DateTimeFormat("en", {
+              {new Intl.DateTimeFormat(formatLocale(), {
                 weekday: "short",
                 day: "numeric",
                 month: "short",
@@ -501,35 +545,41 @@ function DashboardContent() {
             <div>
               {view === "overview" && (
                 <span className="kv-hello">
-                  Welcome back, {user.first_name} <span className="kv-wave">*</span>
+                  {t("Welcome back,")} {user.first_name} <span className="kv-wave">*</span>
                 </span>
               )}
               <h1>
-                {isStaffDetail ? selectedStaff?.name || "Staff details" : viewDetails[view].title}
+                {isStaffDetail
+                  ? selectedStaff?.name || t("Staff details")
+                  : isServiceDetail
+                    ? selectedService?.name || t("Service details")
+                    : t(viewDetails[view].title)}
               </h1>
               <p>
                 {isStaffDetail
-                  ? "Their people profile, assigned devices and service responsibilities."
-                  : viewDetails[view].subtitle}
+                  ? t("Their people profile, assigned devices and service responsibilities.")
+                  : isServiceDetail
+                    ? t("Installation location, HTTP health and detected availability errors.")
+                    : t(viewDetails[view].subtitle)}
               </p>
             </div>
-            {!isStaffDetail && (
+            {!isStaffDetail && !isServiceDetail && (
               <div className="kv-heading-actions">
                 <button className="kv-button" onClick={exportData} disabled={!data}>
-                  <ArrowDownToLine size={16} /> Export
+                  <ArrowDownToLine size={16} /> {t("Export")}
                 </button>
                 {view !== "activity" && (
                   <button className="kv-button primary" onClick={openAdd} disabled={!data}>
                     <Plus size={17} />
                     {view === "staff"
-                      ? "Add staff"
+                      ? t("Add staff")
                       : view === "services"
-                        ? "Add service"
+                        ? t("Add service")
                         : view === "servers"
-                          ? "Add server"
+                          ? t("Add server")
                           : view === "mobile"
-                            ? "Add phone"
-                            : "Add asset"}
+                            ? t("Add phone")
+                            : t("Add asset")}
                   </button>
                 )}
               </div>
@@ -538,19 +588,19 @@ function DashboardContent() {
           {inventory.isPending ? (
             <div className="kv-loading">
               <Loader2 size={30} className="kv-spin" />
-              <h3>Getting everything in order...</h3>
-              <p>Loading your workspace inventory.</p>
+              <h3>{t("Getting everything in order...")}</h3>
+              <p>{t("Loading your workspace inventory.")}</p>
             </div>
           ) : inventory.isError ? (
             <div className="kv-empty">
               <Cloud size={36} />
-              <h3>We couldn't load your inventory.</h3>
+              <h3>{t("We couldn't load your inventory.")}</h3>
               <p>{errorMessage(inventory.error)}</p>
               <button className="kv-button primary" onClick={() => inventory.refetch()}>
-                Try again
+                {t("Try again")}
               </button>
               <Link to="/login" className="kv-text-link">
-                Sign in again <ArrowRight size={14} />
+                {t("Sign in again")} <ArrowRight size={14} />
               </Link>
             </div>
           ) : (
@@ -561,35 +611,37 @@ function DashboardContent() {
                     <div className="kv-stats-grid">
                       {[
                         {
-                          label: "Total assets",
+                          label: t("Total assets"),
                           value: data.assets.length,
                           icon: Boxes,
                           color: "violet",
-                          caption: "Every device, accounted for",
+                          caption: t("Every device, accounted for"),
                           target: "devices",
                         },
                         {
-                          label: "Assigned assets",
+                          label: t("Assigned assets"),
                           value: data.assets.filter((asset) => asset.owner_id !== null).length,
                           icon: Handshake,
                           color: "blue",
-                          caption: "Connected to your people",
+                          caption: t("Connected to your people"),
                           target: "ownership",
                         },
                         {
-                          label: "Available to use",
+                          label: t("Available to use"),
                           value: data.assets.filter((asset) => asset.status === "Available").length,
                           icon: Check,
                           color: "green",
-                          caption: "Ready for their next chapter",
+                          caption: t("Ready for their next chapter"),
                           target: "devices",
                         },
                         {
-                          label: "Hosted services",
+                          label: t("Hosted services"),
                           value: data.services.length,
                           icon: Cloud,
                           color: "amber",
-                          caption: `Across ${new Set(data.services.map((service) => service.host_id)).size} connected hosts`,
+                          caption: t("Across {count} connected hosts", {
+                            count: new Set(data.services.map((service) => service.host_id)).size,
+                          }),
                           target: "services",
                         },
                       ].map((stat) => (
@@ -611,7 +663,7 @@ function DashboardContent() {
                               <stat.icon size={19} />
                             </span>
                           </div>
-                          <strong>{stat.value.toLocaleString()}</strong>
+                          <strong>{stat.value.toLocaleString(formatLocale())}</strong>
                           <span className="kv-stat-caption">
                             {stat.color === "green" && <span className="kv-live-dot" />}
                             {stat.caption}
@@ -624,10 +676,10 @@ function DashboardContent() {
                       <section className="kv-card kv-distribution">
                         <div className="kv-card-heading">
                           <div>
-                            <h2>A well-connected inventory</h2>
-                            <p>A little perspective on your assets.</p>
+                            <h2>{t("A well-connected inventory")}</h2>
+                            <p>{t("A little perspective on your assets.")}</p>
                           </div>
-                          <span className="kv-pill">By category</span>
+                          <span className="kv-pill">{t("By category")}</span>
                         </div>
                         <div className="kv-distribution-content">
                           <AssetDonut assets={data.assets} />
@@ -641,7 +693,7 @@ function DashboardContent() {
                                   <div key={kind}>
                                     <span>
                                       <i style={{ background: chartColors[index] }} />
-                                      {kind === "Mobile" ? "Mobile phones" : `${kind}s`}
+                                      {kind === "Mobile" ? t("Mobile phones") : t(`${kind}s`)}
                                     </span>
                                     <b>
                                       {count}
@@ -662,8 +714,8 @@ function DashboardContent() {
                       <section className="kv-card kv-attention">
                         <div className="kv-card-heading">
                           <div>
-                            <h2>A little attention goes a long way</h2>
-                            <p>Your next best steps, in one place.</p>
+                            <h2>{t("A little attention goes a long way")}</h2>
+                            <p>{t("Your next best steps, in one place.")}</p>
                           </div>
                           <span className="kv-attention-count">{attentionCount}</span>
                         </div>
@@ -679,10 +731,14 @@ function DashboardContent() {
                           </span>
                           <span>
                             <strong>
-                              {maintenance.length}{" "}
-                              {maintenance.length === 1 ? "asset needs" : "assets need"} a check-in
+                              {t(
+                                maintenance.length === 1
+                                  ? "{count} asset needs a check-in"
+                                  : "{count} assets need a check-in",
+                                { count: maintenance.length }
+                              )}
                             </strong>
-                            <small>Keep your equipment at its best</small>
+                            <small>{t("Keep your equipment at its best")}</small>
                           </span>
                           <ChevronRight size={17} />
                         </button>
@@ -692,22 +748,32 @@ function DashboardContent() {
                           </span>
                           <span>
                             <strong>
-                              {expiring.length}{" "}
-                              {expiring.length === 1 ? "warranty needs" : "warranties need"} a look
+                              {t(
+                                expiring.length === 1
+                                  ? "{count} warranty needs a look"
+                                  : "{count} warranties need a look",
+                                { count: expiring.length }
+                              )}
                             </strong>
-                            <small>Expired or expiring in the next 30 days</small>
+                            <small>{t("Expired or expiring in the next 30 days")}</small>
                           </span>
                           <ChevronRight size={17} />
                         </button>
                         <div className="kv-attention-footer">
-                          <span className="kv-live-dot" />A little care today. Fewer surprises
-                          tomorrow.
+                          <span className="kv-live-dot" />
+                          {t("A little care today. Fewer surprises tomorrow.")}
                         </div>
                       </section>
                     </div>
                   </>
                 )}
-                {isStaffDetail ? (
+                {isServiceDetail ? (
+                  <ServiceDetail
+                    service={selectedService}
+                    data={data}
+                    onEdit={(service) => setEditor({ kind: "service", record: service })}
+                  />
+                ) : isStaffDetail ? (
                   <StaffDetail
                     person={selectedStaff}
                     data={data}
@@ -720,7 +786,7 @@ function DashboardContent() {
                     <div className="kv-card-heading">
                       <div>
                         <h2>
-                          {view === "overview" ? "Your inventory" : viewDetails[view].label}
+                          {view === "overview" ? t("Your inventory") : t(viewDetails[view].label)}
                           <span className="kv-count-pill">
                             {view === "staff"
                               ? data.staff.length
@@ -738,17 +804,17 @@ function DashboardContent() {
                         </h2>
                         <p>
                           {view === "overview"
-                            ? "The tools your team does great things with."
+                            ? t("The tools your team does great things with.")
                             : view === "ownership"
-                              ? "Choose an asset to assign, reassign or release its owner."
+                              ? t("Choose an asset to assign, reassign or release its owner.")
                               : view === "activity"
-                                ? "Your most recent 100 inventory events."
-                                : "Keep the details current. Make every connection count."}
+                                ? t("Your most recent 100 inventory events.")
+                                : t("Keep the details current. Make every connection count.")}
                         </p>
                       </div>
                       {view === "overview" && (
                         <Link to="/dashboard" search={{ view: "devices" }} className="kv-text-link">
-                          View all assets
+                          {t("View all assets")}
                           <ArrowUpRight size={15} />
                         </Link>
                       )}
@@ -757,21 +823,21 @@ function DashboardContent() {
                       <label className="kv-search">
                         <Search size={17} />
                         <input
-                          aria-label="Search inventory"
+                          aria-label={t("Search inventory")}
                           placeholder={
                             view === "staff"
-                              ? "Search people, departments..."
+                              ? t("Search people, departments...")
                               : view === "services"
-                                ? "Search services, hosts, responsible staff..."
+                                ? t("Search services, hosts, responsible staff...")
                                 : view === "activity"
-                                  ? "Search activity..."
-                                  : "Search assets, people, tags..."
+                                  ? t("Search activity...")
+                                  : t("Search assets, people, tags...")
                           }
                           value={search}
                           onChange={(event) => setQuery(event.target.value)}
                         />
                         {search && (
-                          <button aria-label="Clear search" onClick={() => setQuery("")}>
+                          <button aria-label={t("Clear search")} onClick={() => setQuery("")}>
                             <X size={14} />
                           </button>
                         )}
@@ -781,7 +847,7 @@ function DashboardContent() {
                           <label className="kv-filter">
                             <Filter size={14} />
                             <select
-                              aria-label="Filter by status"
+                              aria-label={t("Filter by status")}
                               value={status}
                               onChange={(event) => {
                                 setStatus(event.target.value);
@@ -795,14 +861,16 @@ function DashboardContent() {
                                 "Maintenance",
                                 "Retired",
                               ].map((value) => (
-                                <option key={value}>{value}</option>
+                                <option key={value} value={value}>
+                                  {t(value)}
+                                </option>
                               ))}
                             </select>
                           </label>
                           {view !== "servers" && view !== "mobile" && (
                             <label className="kv-filter">
                               <select
-                                aria-label="Filter by category"
+                                aria-label={t("Filter by category")}
                                 value={category}
                                 onChange={(event) => {
                                   setCategory(event.target.value);
@@ -817,7 +885,9 @@ function DashboardContent() {
                                   "Mobile",
                                   "Network",
                                 ].map((value) => (
-                                  <option key={value}>{value}</option>
+                                  <option key={value} value={value}>
+                                    {t(value)}
+                                  </option>
                                 ))}
                               </select>
                             </label>
@@ -830,13 +900,13 @@ function DashboardContent() {
                         <Search size={30} />
                         <h3>
                           {search || status !== "All statuses" || category !== "All categories"
-                            ? "No matches. A fresh search might help."
-                            : "A little empty. Full of possibilities."}
+                            ? t("No matches. A fresh search might help.")
+                            : t("A little empty. Full of possibilities.")}
                         </h3>
                         <p>
                           {search
-                            ? "Try another name, tag, department or location."
-                            : "Add your first record to start connecting your workspace."}
+                            ? t("Try another name, tag, department or location.")
+                            : t("Add your first record to start connecting your workspace.")}
                         </p>
                         <button
                           className="kv-button"
@@ -853,8 +923,8 @@ function DashboardContent() {
                           }}
                         >
                           {search || status !== "All statuses" || category !== "All categories"
-                            ? "Clear filters"
-                            : "Add your first record"}
+                            ? t("Clear filters")
+                            : t("Add your first record")}
                         </button>
                       </div>
                     ) : (
@@ -886,7 +956,11 @@ function DashboardContent() {
                                       ]
                               ).map((heading, index) => (
                                 <th key={index}>
-                                  {heading || <span className="kv-sr-only">Actions</span>}
+                                  {heading ? (
+                                    t(heading)
+                                  ) : (
+                                    <span className="kv-sr-only">{t("Actions")}</span>
+                                  )}
                                 </th>
                               ))}
                             </tr>
@@ -933,11 +1007,13 @@ function DashboardContent() {
                                           <strong>{event.message}</strong>
                                         </td>
                                         <td>
-                                          <span className="kv-pill">{event.category}</span>
+                                          <span className="kv-pill">{t(event.category)}</span>
                                         </td>
                                         <td>{event.actor}</td>
                                         <td className="kv-nowrap">
-                                          {new Date(event.created_at).toLocaleString()}
+                                          {new Date(event.created_at).toLocaleString(
+                                            formatLocale()
+                                          )}
                                         </td>
                                       </tr>
                                     ))
@@ -958,7 +1034,7 @@ function DashboardContent() {
                                               </span>
                                               <span>
                                                 <strong>{asset.name}</strong>
-                                                <small>{asset.model || asset.kind}</small>
+                                                <small>{asset.model || t(asset.kind)}</small>
                                               </span>
                                             </button>
                                           </td>
@@ -981,7 +1057,7 @@ function DashboardContent() {
                                             ) : (
                                               <span className="kv-unassigned">
                                                 <span />
-                                                Unassigned
+                                                {t("Unassigned")}
                                               </span>
                                             )}
                                           </td>
@@ -995,14 +1071,18 @@ function DashboardContent() {
                                             <div className="kv-row-actions">
                                               <button
                                                 className="kv-icon-button"
-                                                aria-label={`Manage ${asset.name}`}
+                                                aria-label={t("Manage {name}", {
+                                                  name: asset.name,
+                                                })}
                                                 onClick={() => editAsset(asset)}
                                               >
                                                 <MoreHorizontal size={19} />
                                               </button>
                                               <button
                                                 className="kv-icon-button kv-delete-button"
-                                                aria-label={`Delete ${asset.name}`}
+                                                aria-label={t("Delete {name}", {
+                                                  name: asset.name,
+                                                })}
                                                 onClick={() => {
                                                   deleteMutation.reset();
                                                   setDeleting({
@@ -1025,24 +1105,22 @@ function DashboardContent() {
                     )}
                     <div className="kv-table-pagination">
                       <span>
-                        {total > 0 ? (
-                          <>
-                            Showing{" "}
-                            <strong>
-                              {start + 1}-{Math.min(start + pageSize, total)}
-                            </strong>{" "}
-                            of <strong>{total}</strong>{" "}
-                            {view === "staff"
-                              ? "people"
-                              : view === "services"
-                                ? "services"
-                                : view === "activity"
-                                  ? "events"
-                                  : "assets"}
-                          </>
-                        ) : (
-                          "No records to show"
-                        )}
+                        {total > 0
+                          ? t("Showing {start}-{end} of {total} {type}", {
+                              start: start + 1,
+                              end: Math.min(start + pageSize, total),
+                              total,
+                              type: t(
+                                view === "staff"
+                                  ? "people"
+                                  : view === "services"
+                                    ? "services"
+                                    : view === "activity"
+                                      ? "events"
+                                      : "assets"
+                              ),
+                            })
+                          : t("No records to show")}
                       </span>
                       <div>
                         <button
@@ -1051,7 +1129,7 @@ function DashboardContent() {
                           onClick={() => setPage(currentPage - 1)}
                         >
                           <ChevronLeft size={15} />
-                          Previous
+                          {t("Previous")}
                         </button>
                         <span>
                           {currentPage} / {pages}
@@ -1061,7 +1139,7 @@ function DashboardContent() {
                           disabled={currentPage >= pages}
                           onClick={() => setPage(currentPage + 1)}
                         >
-                          Next
+                          {t("Next")}
                           <ChevronRight size={15} />
                         </button>
                       </div>
@@ -1073,15 +1151,15 @@ function DashboardContent() {
                     <section className="kv-card kv-recent">
                       <div className="kv-card-heading">
                         <div>
-                          <h2>Little things, recently</h2>
-                          <p>Your workspace in motion.</p>
+                          <h2>{t("Little things, recently")}</h2>
+                          <p>{t("Your workspace in motion.")}</p>
                         </div>
                         <Link
                           to="/dashboard"
                           search={{ view: "activity" }}
                           className="kv-text-link"
                         >
-                          All activity <ArrowUpRight size={14} />
+                          {t("All activity")} <ArrowUpRight size={14} />
                         </Link>
                       </div>
                       {data.events.length ? (
@@ -1095,7 +1173,7 @@ function DashboardContent() {
                               <small>{event.actor}</small>
                             </div>
                             <time>
-                              {new Date(event.created_at).toLocaleDateString("en", {
+                              {new Date(event.created_at).toLocaleDateString(formatLocale(), {
                                 month: "short",
                                 day: "numeric",
                               })}
@@ -1103,26 +1181,26 @@ function DashboardContent() {
                           </div>
                         ))
                       ) : (
-                        <p className="kv-no-activity">Your next change starts the story.</p>
+                        <p className="kv-no-activity">{t("Your next change starts the story.")}</p>
                       )}
                     </section>
                     <section className="kv-quick-card">
                       <span className="kv-quick-sparkle">
                         <Sparkles size={24} />
                       </span>
-                      <span className="kv-overline">GOOD CONNECTIONS START HERE</span>
+                      <span className="kv-overline">{t("GOOD CONNECTIONS START HERE")}</span>
                       <h3>
-                        New person.
+                        {t("New person.")}
                         <br />
-                        New possibilities.
+                        {t("New possibilities.")}
                       </h3>
                       <p>
-                        Welcome a teammate to your staff directory
+                        {t("Welcome a teammate to your staff directory")}
                         <br />
-                        and give their devices a proper home.
+                        {t("and give their devices a proper home.")}
                       </p>
                       <button className="kv-button" onClick={() => setEditor({ kind: "staff" })}>
-                        Register a staff member <ArrowRight size={15} />
+                        {t("Register a staff member")} <ArrowRight size={15} />
                       </button>
                     </section>
                   </div>
@@ -1132,10 +1210,11 @@ function DashboardContent() {
           )}
           <footer className="kv-dashboard-footer">
             <span>
-              <span className="kv-live-dot" /> A place for everything. A little headspace for you.
+              <span className="kv-live-dot" />{" "}
+              {t("A place for everything. A little headspace for you.")}
             </span>
             <span>
-              Made for your team <span>/</span> Powered by Grit
+              {t("Made for your team")} <span>/</span> {t("Powered by Grit")}
             </span>
           </footer>
         </main>
@@ -1150,8 +1229,10 @@ function DashboardContent() {
       )}
       {deleting && (
         <BaseDialog
-          title={`Remove ${deleting.name}?`}
-          description="This permanently deletes the inventory record. This action cannot be undone."
+          title={t("Remove {name}?", { name: deleting.name })}
+          description={t(
+            "This permanently deletes the inventory record. This action cannot be undone."
+          )}
           open={!deleteMutation.isSuccess}
           dismissible={!deleteMutation.isPending}
           onClose={() => {
@@ -1161,8 +1242,9 @@ function DashboardContent() {
           {(close) => (
             <div className="kv-delete-content">
               <p>
-                Reassign any owned assets, service responsibilities or hosted services first. Past
-                activity will remain in the log.
+                {t(
+                  "Reassign any owned assets, service responsibilities or hosted services first. Past activity will remain in the log."
+                )}
               </p>
               {deleteMutation.isError && (
                 <div className="kv-error" role="alert">
@@ -1171,7 +1253,7 @@ function DashboardContent() {
               )}
               <div className="kv-modal-actions">
                 <button className="kv-button" disabled={deleteMutation.isPending} onClick={close}>
-                  Keep record
+                  {t("Keep record")}
                 </button>
                 <button
                   className="kv-button danger"
@@ -1183,7 +1265,7 @@ function DashboardContent() {
                   ) : (
                     <Trash2 size={16} />
                   )}
-                  Remove record
+                  {t("Remove record")}
                 </button>
               </div>
             </div>
@@ -1192,31 +1274,39 @@ function DashboardContent() {
       )}
       {help && (
         <BaseDialog
-          title="A little help getting organized."
-          description="One workspace for your company's IT inventory."
+          title={t("A little help getting organized.")}
+          description={t("One workspace for your company's IT inventory.")}
           onClose={() => setHelp(false)}
         >
           <div className="kv-help-content">
             {[
               {
                 icon: Laptop,
-                title: "1. Bring in your assets",
-                text: "Add laptops, desktops, servers, phones and networking equipment. Include asset tags, locations and warranty dates.",
+                title: t("1. Bring in your assets"),
+                text: t(
+                  "Add laptops, desktops, servers, phones and networking equipment. Include asset tags, locations and warranty dates."
+                ),
               },
               {
                 icon: Users,
-                title: "2. Meet your people",
-                text: "Register staff in the directory. This tracks ownership; login accounts are managed separately by an administrator.",
+                title: t("2. Meet your people"),
+                text: t(
+                  "Register staff in the directory. This tracks ownership; login accounts are managed separately by an administrator."
+                ),
               },
               {
                 icon: Handshake,
-                title: "3. Make the connections",
-                text: "Open an asset to assign its owner. Register hosted services and choose the server or device they run on.",
+                title: t("3. Make the connections"),
+                text: t(
+                  "Open an asset to assign its owner. Register hosted services and choose the server or device they run on."
+                ),
               },
               {
                 icon: ArrowDownToLine,
-                title: "4. Keep a clear picture",
-                text: "Search and filter inventory, export the current view as CSV, and review ownership changes in the activity log.",
+                title: t("4. Keep a clear picture"),
+                text: t(
+                  "Search and filter inventory, export the current view as CSV, and review ownership changes in the activity log."
+                ),
               },
             ].map((item) => (
               <div key={item.title}>
@@ -1231,7 +1321,7 @@ function DashboardContent() {
             ))}
             {user.role === "ADMIN" && (
               <a href="/admin/dashboard" className="kv-button">
-                Open Grit administration <ExternalLink size={15} />
+                {t("Open Grit administration")} <ExternalLink size={15} />
               </a>
             )}
           </div>
@@ -1239,8 +1329,8 @@ function DashboardContent() {
       )}
       {notifications && (
         <BaseDialog
-          title="A little attention."
-          description="Warranty reminders and devices that need a check-in."
+          title={t("A little attention.")}
+          description={t("Warranty reminders and devices that need a check-in.")}
           open={!notificationAsset}
           onClose={() => {
             setNotifications(false);
@@ -1254,8 +1344,8 @@ function DashboardContent() {
             {attentionCount === 0 ? (
               <div className="kv-empty">
                 <ShieldCheck size={32} />
-                <h3>Everything looks good.</h3>
-                <p>No maintenance or warranty reminders right now.</p>
+                <h3>{t("Everything looks good.")}</h3>
+                <p>{t("No maintenance or warranty reminders right now.")}</p>
               </div>
             ) : (
               [
@@ -1275,10 +1365,15 @@ function DashboardContent() {
                   <span>
                     <strong>{asset.name}</strong>
                     <small>
-                      {asset.status === "Maintenance" ? "Needs maintenance" : ""}
+                      {asset.status === "Maintenance" ? t("Needs maintenance") : ""}
                       {asset.status === "Maintenance" && expiring.includes(asset) ? " / " : ""}
                       {expiring.includes(asset)
-                        ? `Warranty ${asset.warranty_date < new Date().toISOString().slice(0, 10) ? "expired" : "expires"} ${asset.warranty_date}`
+                        ? t(
+                            asset.warranty_date < new Date().toISOString().slice(0, 10)
+                              ? "Warranty expired {date}"
+                              : "Warranty expires {date}",
+                            { date: asset.warranty_date }
+                          )
                         : ""}
                     </small>
                   </span>
@@ -1295,6 +1390,8 @@ function DashboardContent() {
 
 const chartColors = ["#8670df", "#b9a9ed", "#a7c3e7", "#edc1d2", "#d4dfc4"];
 function AssetDonut({ assets }: { assets: Asset[] }) {
+  useLocale();
+
   let offset = 0;
   const gradient = (["Laptop", "Desktop", "Server", "Mobile", "Network"] as const)
     .map((kind, index) => {
@@ -1310,12 +1407,14 @@ function AssetDonut({ assets }: { assets: Asset[] }) {
       className="kv-donut"
       style={{ background: assets.length ? `conic-gradient(${gradient})` : "#efedf5" }}
       role="img"
-      aria-label={`${assets.length} total assets, category breakdown listed alongside`}
+      aria-label={t("{count} total assets, category breakdown listed alongside", {
+        count: assets.length,
+      })}
     >
       <div>
         <Boxes size={19} />
         <strong>{assets.length}</strong>
-        <span>total assets</span>
+        <span>{t("total assets")}</span>
       </div>
     </div>
   );
@@ -1332,6 +1431,8 @@ function StaffRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  useLocale();
+
   return (
     <tr>
       <td>
@@ -1357,19 +1458,23 @@ function StaffRow({
           search={{ view: "staff", staff_id: person.id }}
           className="kv-text-link"
         >
-          {data.assets.filter((asset) => asset.owner_id === person.id).length} assigned{" "}
+          {data.assets.filter((asset) => asset.owner_id === person.id).length} {t("assigned")}{" "}
           <ArrowUpRight size={13} />
         </Link>
       </td>
       <td>
         <div className="kv-row-actions">
-          <button className="kv-icon-button" onClick={onEdit} aria-label={`Manage ${person.name}`}>
+          <button
+            className="kv-icon-button"
+            onClick={onEdit}
+            aria-label={t("Manage {name}", { name: person.name })}
+          >
             <MoreHorizontal size={19} />
           </button>
           <button
             className="kv-icon-button kv-delete-button"
             onClick={onDelete}
-            aria-label={`Delete ${person.name}`}
+            aria-label={t("Delete {name}", { name: person.name })}
           >
             <Trash2 size={15} />
           </button>
@@ -1390,31 +1495,37 @@ function ServiceRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  useLocale();
+
   const host = data.assets.find((asset) => asset.id === service.host_id);
   return (
     <tr>
       <td>
-        <button className="kv-asset-name" onClick={onEdit}>
+        <Link
+          to="/dashboard"
+          search={{ view: "services", service_id: service.id }}
+          className="kv-asset-name"
+        >
           <span className="kv-icon-tile blue">
             <Cloud size={21} />
           </span>
           <span>
             <strong>{service.name}</strong>
-            <small>{service.description || "Hosted service"}</small>
+            <small>{service.description || t("Hosted service")}</small>
           </span>
-        </button>
+        </Link>
       </td>
       <td>
         <span className="kv-host-name">
           <Server size={15} />
           <span>
-            {host?.name || "Unknown host"}
+            {host?.name || t("Unknown host")}
             <small>{host?.tag}</small>
           </span>
         </span>
       </td>
       <td>
-        <span className="kv-pill">{service.environment}</span>
+        <span className="kv-pill">{t(service.environment)}</span>
       </td>
       <td>
         <Badge status={service.status} />
@@ -1436,19 +1547,23 @@ function ServiceRow({
               </Link>
             ))
           ) : (
-            <span className="kv-unassigned">Unassigned</span>
+            <span className="kv-unassigned">{t("Unassigned")}</span>
           )}
         </div>
       </td>
       <td>
         <div className="kv-row-actions">
-          <button className="kv-icon-button" onClick={onEdit} aria-label={`Manage ${service.name}`}>
+          <button
+            className="kv-icon-button"
+            onClick={onEdit}
+            aria-label={t("Manage {name}", { name: service.name })}
+          >
             <MoreHorizontal size={19} />
           </button>
           <button
             className="kv-icon-button kv-delete-button"
             onClick={onDelete}
-            aria-label={`Delete ${service.name}`}
+            aria-label={t("Delete {name}", { name: service.name })}
           >
             <Trash2 size={15} />
           </button>

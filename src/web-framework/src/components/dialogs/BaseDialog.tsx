@@ -1,3 +1,4 @@
+import { t, useLocale } from "@/lib/i18n";
 import { X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
@@ -18,6 +19,8 @@ export function BaseDialog({
   dismissible = true,
   onClose,
 }: BaseDialogProps) {
+  useLocale();
+
   const ref = useRef<HTMLDialogElement>(null);
   const [closeRequested, setCloseRequested] = useState(false);
   const closing = closeRequested || !open;
@@ -68,7 +71,7 @@ export function BaseDialog({
         <button
           type="button"
           className="kv-icon-button"
-          aria-label="Close dialog"
+          aria-label={t("Close dialog")}
           disabled={!dismissible || closing}
           onClick={requestClose}
         >

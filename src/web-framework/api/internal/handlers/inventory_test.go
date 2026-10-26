@@ -38,6 +38,7 @@ func inventoryTestRouter(t *testing.T, role string) (*gin.Engine, *gorm.DB) {
 	r.PUT("/inventory/staff/:id", h.SaveStaff)
 	r.POST("/inventory/services", h.SaveService)
 	r.PUT("/inventory/services/:id", h.SaveService)
+	r.POST("/inventory/services/:id/check", h.CheckService)
 	r.DELETE("/inventory/:resource/:id", h.Delete)
 	return r, db
 }

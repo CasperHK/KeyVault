@@ -1,3 +1,4 @@
+import { t, useLocale } from "@/lib/i18n";
 import { useLocation } from "@tanstack/react-router";
 import { ArrowUp } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -6,6 +7,8 @@ import "./ScrollTopButton.css";
 const circumference = 2 * Math.PI * 23;
 
 export function ScrollTopButton() {
+  useLocale();
+
   const { pathname } = useLocation();
   const [scroll, setScroll] = useState({ visible: false, progress: 0 });
 
@@ -48,10 +51,10 @@ export function ScrollTopButton() {
       className="kv-scroll-top"
       data-visible={scroll.visible}
       data-admin={pathname.startsWith("/admin")}
-      aria-label="Scroll to top"
+      aria-label={t("Scroll to top")}
       aria-hidden={!scroll.visible}
       tabIndex={scroll.visible ? 0 : -1}
-      title="Back to top"
+      title={t("Back to top")}
       onClick={() => {
         window.scrollTo({
           top: 0,
@@ -74,7 +77,7 @@ export function ScrollTopButton() {
       </svg>
       <ArrowUp size={21} strokeWidth={2} aria-hidden="true" />
       <span className="kv-scroll-top-label" aria-hidden="true">
-        Back to top
+        {t("Back to top")}
       </span>
     </button>
   );

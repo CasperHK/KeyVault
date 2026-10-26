@@ -1,5 +1,6 @@
 import { Boxes, type LucideIcon, Laptop, Monitor, Network, Server, Smartphone } from "lucide-react";
 import type { Asset } from "@/lib/inventory";
+import { t, useLocale } from "@/lib/i18n";
 
 export const assetIcons: Record<Asset["kind"], LucideIcon> = {
   Laptop,
@@ -25,18 +26,19 @@ export function Brand({ compact = false }: { compact?: boolean }) {
 }
 
 export function Badge({ status }: { status: string }) {
+  useLocale();
   const tone =
-    status === "In use" || status === "Running"
+    status === "In use" || status === "Running" || status === "Healthy"
       ? "green"
       : status === "Available"
         ? "blue"
-        : status === "Maintenance"
+        : status === "Maintenance" || status === "Unhealthy"
           ? "amber"
           : "gray";
   return (
     <span className={`kv-badge ${tone}`}>
       <span />
-      {status}
+      {t(status)}
     </span>
   );
 }

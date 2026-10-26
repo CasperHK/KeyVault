@@ -1,3 +1,4 @@
+import { t, useLocale } from "@/lib/i18n";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowDown,
@@ -18,52 +19,58 @@ import {
   Users,
 } from "lucide-react";
 import { Brand } from "@/components/keyvault-ui";
+import { LanguageSelector } from "@/components/language-selector";
 import "@/keyvault.css";
 
 export const Route = createFileRoute("/_site/")({ component: HomePage });
 
 function HomePage() {
+  useLocale();
+
   return (
     <div className="kv kv-landing">
       <nav className="kv-public-nav">
-        <Link to="/" aria-label="KeyVault home">
+        <Link to="/" aria-label={t("KeyVault home")}>
           <Brand />
         </Link>
         <div className="kv-nav-links">
-          <a href="#features">The platform</a>
-          <a href="#how-it-works">How it works</a>
-          <a href="#built-for-teams">Built for teams</a>
+          <a href="#features">{t("The platform")}</a>
+          <a href="#how-it-works">{t("How it works")}</a>
+          <a href="#built-for-teams">{t("Built for teams")}</a>
         </div>
-        <Link to="/login" className="kv-button dark">
-          Open workspace <ArrowUpRight size={16} />
-        </Link>
+        <div className="kv-public-actions">
+          <LanguageSelector />
+          <Link to="/login" className="kv-button dark">
+            {t("Open workspace")} <ArrowUpRight size={16} />
+          </Link>
+        </div>
       </nav>
       <main>
         <section className="kv-hero">
           <div className="kv-hero-copy">
             <span className="kv-eyebrow">
-              <span className="kv-live-dot" /> A little order. A lot of possibility.
+              <span className="kv-live-dot" /> {t("A little order. A lot of possibility.")}
             </span>
             <h1>
-              Your IT, finally
+              {t("Your IT, finally")}
               <br />
-              in <span className="kv-serif">good hands.</span>
+              {t("in")} <span className="kv-serif">{t("good hands.")}</span>
               <span className="kv-sparkle">
                 <Sparkles />
               </span>
             </h1>
             <p>
-              Every device. Every person. Every connection.
+              {t("Every device. Every person. Every connection.")}
               <br />
-              One beautifully organized home for your company's
-              <br className="kv-desktop-break" /> IT inventory. Meet KeyVault.
+              {t("One beautifully organized home for your company's")}
+              <br className="kv-desktop-break" /> {t("IT inventory. Meet KeyVault.")}
             </p>
             <div className="kv-hero-actions">
               <Link to="/login" className="kv-button primary large">
-                Step inside your workspace <ArrowRight size={18} />
+                {t("Step inside your workspace")} <ArrowRight size={18} />
               </Link>
               <a href="#features" className="kv-text-link">
-                Take a closer look <ArrowDown size={16} />
+                {t("Take a closer look")} <ArrowDown size={16} />
               </a>
             </div>
             <div className="kv-hero-proof">
@@ -79,9 +86,9 @@ function HomePage() {
                 </span>
               </div>
               <span>
-                Less spreadsheet.
+                {t("Less spreadsheet.")}
                 <br />
-                <strong>More peace of mind.</strong>
+                <strong>{t("More peace of mind.")}</strong>
               </span>
             </div>
           </div>
@@ -94,8 +101,8 @@ function HomePage() {
                 <ShieldCheck size={23} />
               </span>
               <div>
-                <strong>Everything accounted for</strong>
-                <span>Your inventory, connected.</span>
+                <strong>{t("Everything accounted for")}</strong>
+                <span>{t("Your inventory, connected.")}</span>
               </div>
               <CheckCircle2 size={19} className="kv-green" />
             </div>
@@ -119,34 +126,34 @@ function HomePage() {
                 <div className="kv-preview-main">
                   <div className="kv-preview-heading">
                     <div>
-                      <small>YOUR WORKSPACE, AT A GLANCE</small>
-                      <h3>A clearer picture.</h3>
+                      <small>{t("YOUR WORKSPACE, AT A GLANCE")}</small>
+                      <h3>{t("A clearer picture.")}</h3>
                     </div>
-                    <span className="kv-mini-button">+ Add asset</span>
+                    <span className="kv-mini-button">{t("+ Add asset")}</span>
                   </div>
                   <div className="kv-preview-stats">
                     <div>
                       <Laptop size={17} />
                       <strong>
-                        128<small>devices</small>
+                        128<small>{t("devices")}</small>
                       </strong>
                     </div>
                     <div>
                       <Users size={17} />
                       <strong>
-                        42<small>happy people</small>
+                        42<small>{t("happy people")}</small>
                       </strong>
                     </div>
                     <div>
                       <CircleDot size={17} />
                       <strong>
-                        100%<small>visibility</small>
+                        100%<small>{t("visibility")}</small>
                       </strong>
                     </div>
                   </div>
                   <div className="kv-preview-table">
                     <span>
-                      YOUR INVENTORY <small>All in one place</small>
+                      {t("YOUR INVENTORY")} <small>{t("All in one place")}</small>
                     </span>
                     {[
                       { icon: Laptop, name: "MacBook Pro", tag: "KV-LT-001", color: "violet" },
@@ -158,10 +165,10 @@ function HomePage() {
                           <item.icon size={18} />
                         </span>
                         <div>
-                          <b>{item.name}</b>
+                          <b>{t(item.name)}</b>
                           <small>{item.tag}</small>
                         </div>
-                        <span className="kv-mini-status">In use</span>
+                        <span className="kv-mini-status">{t("In use")}</span>
                       </div>
                     ))}
                   </div>
@@ -173,44 +180,44 @@ function HomePage() {
                 <Users size={23} />
               </span>
               <div>
-                <strong>The right device. The right person.</strong>
-                <span>Ownership made effortless.</span>
+                <strong>{t("The right device. The right person.")}</strong>
+                <span>{t("Ownership made effortless.")}</span>
               </div>
             </div>
             <div className="kv-art-caption">
-              <span /> A place for everything. A connection to everyone.
+              <span /> {t("A place for everything. A connection to everyone.")}
             </div>
           </div>
         </section>
         <div className="kv-values-strip">
-          <span>BUILT FOR THE WAY YOUR TEAM WORKS</span>
+          <span>{t("BUILT FOR THE WAY YOUR TEAM WORKS")}</span>
           <div>
             <Check size={16} />
-            One source of truth
+            {t("One source of truth")}
           </div>
           <div>
             <Check size={16} />
-            People-first inventory
+            {t("People-first inventory")}
           </div>
           <div>
             <Check size={16} />
-            Your data, your infrastructure
+            {t("Your data, your infrastructure")}
           </div>
         </div>
         <section id="features" className="kv-features">
           <div className="kv-section-heading">
             <div>
-              <span className="kv-overline">LESS FRICTION. MORE FLOW.</span>
+              <span className="kv-overline">{t("LESS FRICTION. MORE FLOW.")}</span>
               <h2>
-                The whole picture.
+                {t("The whole picture.")}
                 <br />
-                <span className="kv-serif">Not another spreadsheet.</span>
+                <span className="kv-serif">{t("Not another spreadsheet.")}</span>
               </h2>
             </div>
             <p>
-              From a new starter's first laptop to the server
+              {t("From a new starter's first laptop to the server")}
               <br />
-              powering your business. Make every asset count.
+              {t("powering your business. Make every asset count.")}
             </p>
           </div>
           <div className="kv-feature-grid">
@@ -219,24 +226,30 @@ function HomePage() {
                 icon: Laptop,
                 color: "violet",
                 number: "01",
-                title: "Meet your inventory.",
-                text: "Laptops, desktops, phones and network equipment. Keep the details, status and warranty of every asset in one tidy place.",
+                title: t("Meet your inventory."),
+                text: t(
+                  "Laptops, desktops, phones and network equipment. Keep the details, status and warranty of every asset in one tidy place."
+                ),
                 tags: ["Devices", "Mobile phones", "Lifecycle"],
               },
               {
                 icon: Users,
                 color: "pink",
                 number: "02",
-                title: "Put people in the picture.",
-                text: "Give every device a clear owner. Register your staff, organize departments and make handovers a little more human.",
+                title: t("Put people in the picture."),
+                text: t(
+                  "Give every device a clear owner. Register your staff, organize departments and make handovers a little more human."
+                ),
                 tags: ["Staff directory", "Ownership", "Handovers"],
               },
               {
                 icon: Server,
                 color: "blue",
                 number: "03",
-                title: "Connect the dots.",
-                text: "Know what runs where. Map hosted services to your servers and devices, with environments and ports at your fingertips.",
+                title: t("Connect the dots."),
+                text: t(
+                  "Know what runs where. Map hosted services to your servers and devices, with environments and ports at your fingertips."
+                ),
                 tags: ["Servers", "Services", "Hosting"],
               },
             ].map((feature) => (
@@ -251,7 +264,7 @@ function HomePage() {
                 <p>{feature.text}</p>
                 <div className="kv-feature-tags">
                   {feature.tags.map((tag) => (
-                    <span key={tag}>{tag}</span>
+                    <span key={tag}>{t(tag)}</span>
                   ))}
                 </div>
               </article>
@@ -259,23 +272,23 @@ function HomePage() {
           </div>
         </section>
         <section id="how-it-works" className="kv-how">
-          <span className="kv-overline">FROM CHAOS TO CLARITY</span>
+          <span className="kv-overline">{t("FROM CHAOS TO CLARITY")}</span>
           <h2>
-            Small steps. <span className="kv-serif">A big difference.</span>
+            {t("Small steps.")} <span className="kv-serif">{t("A big difference.")}</span>
           </h2>
           <div className="kv-steps">
             {[
               {
-                title: "Bring your assets together",
-                text: "Add your hardware and the little details that matter.",
+                title: t("Bring your assets together"),
+                text: t("Add your hardware and the little details that matter."),
               },
               {
-                title: "Give everything a home",
-                text: "Assign owners, locations and the services it hosts.",
+                title: t("Give everything a home"),
+                text: t("Assign owners, locations and the services it hosts."),
               },
               {
-                title: "Make room for better work",
-                text: "See what is available, in use or needs some attention.",
+                title: t("Make room for better work"),
+                text: t("See what is available, in use or needs some attention."),
               },
             ].map((step, index) => (
               <div key={step.title}>
@@ -290,18 +303,18 @@ function HomePage() {
           <span className="kv-icon-tile">
             <HardDrive size={26} />
           </span>
-          <span className="kv-overline">A CALMER WAY TO MANAGE IT</span>
+          <span className="kv-overline">{t("A CALMER WAY TO MANAGE IT")}</span>
           <h2>
-            Good things happen
+            {t("Good things happen")}
             <br />
-            when everything <span className="kv-serif">clicks.</span>
+            {t("when everything")} <span className="kv-serif">{t("clicks.")}</span>
           </h2>
-          <p>Your next chapter of organized IT starts here.</p>
+          <p>{t("Your next chapter of organized IT starts here.")}</p>
           <Link to="/login" className="kv-button dark large">
-            Let's get organized <ArrowRight size={18} />
+            {t("Let's get organized")} <ArrowRight size={18} />
           </Link>
           <span className="kv-privacy">
-            <LockKeyhole size={13} /> Privately hosted. Thoughtfully connected.
+            <LockKeyhole size={13} /> {t("Privately hosted. Thoughtfully connected.")}
           </span>
         </section>
       </main>
@@ -309,9 +322,9 @@ function HomePage() {
         <Link to="/">
           <Brand />
         </Link>
-        <span>A home for your IT. A little headspace for you.</span>
+        <span>{t("A home for your IT. A little headspace for you.")}</span>
         <span>
-          Powered by Grit <span className="kv-footer-dot">/</span> {new Date().getFullYear()}{" "}
+          {t("Powered by Grit")} <span className="kv-footer-dot">/</span> {new Date().getFullYear()}{" "}
           KeyVault
         </span>
       </footer>
