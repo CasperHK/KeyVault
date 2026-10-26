@@ -418,6 +418,27 @@
 .kv-app .kv-table td, .kv-app .kv-person, .kv-app .kv-location, .kv-app .kv-table-pagination,
 .kv-app .kv-asset-name small, .kv-app .kv-unassigned, .kv-app .kv-recent-event small,
 .kv-app .kv-recent-event time, .kv-app .kv-quick-card p { color: var(--kv-secondary-text); }
+.kv-app .kv-nav-item { font-size: 12px; }
+.kv-app .kv-sidebar-lower .kv-nav-item { font-size: 11px; }
+.kv-app .kv-card-heading h2 { font-size: 13px; }
+.kv-app .kv-card-heading p, .kv-app .kv-dashboard-heading p { font-size: 11px; }
+.kv-app .kv-table th { font-size: 10px; color: #8d769e; }
+.kv-app .kv-table td, .kv-app .kv-asset-name strong { font-size: 11px; }
+.kv-app .kv-asset-name strong { color: #80618f; }
+.kv-app .kv-asset-name small, .kv-app .kv-person, .kv-app .kv-location,
+.kv-app .kv-unassigned, .kv-app .kv-table code { font-size: 10px; }
+.kv-app .kv-badge { font-size: 9px; }
+.kv-app .kv-stat-caption { font-size: 9px; }
+.kv-app .kv-stat-card > div > span:first-child { font-size: 11px; color: #887494; }
+.kv-app .kv-chart-legend > div { font-size: 10px; }
+.kv-app .kv-search input, .kv-app .kv-filter select { font-size: 11px; }
+.kv-app .kv-search input::placeholder { color: #9b86a9; }
+.kv-app .kv-filter select { color: #91779f; }
+.kv-app .kv-attention-row strong { font-size: 11px; color: #8d729c; }
+.kv-app .kv-attention-row small { font-size: 9px; }
+.kv-app .kv-table-pagination { font-size: 10px; }
+.kv-app .kv-recent-event strong { font-size: 10px; color: #9577a4; }
+.kv-app .kv-pill { font-size: 9px; color: #9777a8; }
 
 @media (min-width: 1600px) {
   .kv-sidebar { width: 256px; }

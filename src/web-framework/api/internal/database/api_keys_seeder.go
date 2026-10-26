@@ -269,6 +269,14 @@ func clientEnvBody(prefix, publishable string) string {
 			prefix + "STORAGE_URL=" + storageOrigin() + "\n"
 	}
 
+	if prefix == "VITE_" {
+		// This SPA uses Vite's API proxy in development and is embedded in the
+		// Go server in production. Baking localhost into it breaks deployment.
+		return body + "# Same-origin API: Vite proxies /api during development.\n" +
+			"VITE_API_URL=\n" +
+			"VITE_STORAGE_URL=" + storageOrigin() + "\n"
+	}
+
 	return body +
 		"# Where this app calls the API." + "\n" +
 		prefix + "API_URL=" + apiOrigin() + "\n" +

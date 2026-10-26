@@ -39,6 +39,10 @@ npm run dev
 
 Open **http://localhost:5173**.
 
+The SPA calls `/api` on its own origin: Vite proxies to `APP_PORT` in
+development, and the Go executable serves both the API and SPA in production.
+Leave `VITE_API_URL` empty unless intentionally using a separate API host.
+
 Development-only administrator: `admin@example.com` / `admin123`.
 The login page can fill these credentials when running the Vite development
 server. No demo credentials are displayed in a production build.
