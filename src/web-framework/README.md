@@ -129,9 +129,10 @@ Before deployment:
   required. Registration does not grant inventory access: only ADMIN/EDITOR do.
 - Serve behind HTTPS and review Grit's administration/security configuration.
 
-Google Fonts are optional presentation resources; system fonts are used when
-they are unavailable. The landing illustration is a static preview, not live
-company data. All dashboard data comes from the Go API, not browser mock storage.
+DM Sans and Manrope are bundled locally through Fontsource; the interface does
+not need external font services or weaker content-security policies. The landing
+illustration is a static preview, not live company data. All dashboard data
+comes from the Go API, not browser mock storage.
 
 ### Upstream dependency advisory
 

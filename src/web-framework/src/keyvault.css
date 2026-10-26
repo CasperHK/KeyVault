@@ -1,11 +1,12 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Manrope:wght@400;500;600;650;700;750;800&display=swap");
+@import "@fontsource-variable/dm-sans/index.css";
+@import "@fontsource-variable/manrope/index.css";
 
 .kv {
   --kv-ink: #282638;
   --kv-muted: #8b8999;
   --kv-purple: #7960cd;
   --kv-line: #eeedf2;
-  font-family: "DM Sans", sans-serif;
+  font-family: "DM Sans Variable", sans-serif;
   color: var(--kv-ink);
   font-size: 13px;
   line-height: 1.5;
@@ -53,12 +54,12 @@
 .kv h1,
 .kv h2,
 .kv h3 {
-  font-family: "Manrope", sans-serif;
+  font-family: "Manrope Variable", sans-serif;
 }
 .kv-brand {
   display: inline-flex;
   align-items: center;
-  font-family: "Manrope", sans-serif;
+  font-family: "Manrope Variable", sans-serif;
   font-size: 24px;
   font-weight: 800;
   letter-spacing: -1.1px;
@@ -1551,7 +1552,7 @@
   border-radius: 7px;
 }
 .kv-stat-card > strong {
-  font-family: "Manrope", sans-serif;
+  font-family: "Manrope Variable", sans-serif;
   display: block;
   font-size: 30px;
   font-weight: 650;
@@ -1654,7 +1655,7 @@
   height: 17px;
 }
 .kv-donut strong {
-  font-family: "Manrope", sans-serif;
+  font-family: "Manrope Variable", sans-serif;
   font-size: 28px;
   font-weight: 600;
   letter-spacing: -1px;
@@ -1960,7 +1961,7 @@
   color: #c7abd8;
 }
 .kv-table code {
-  font-family: "DM Sans", sans-serif;
+  font-family: "DM Sans Variable", sans-serif;
   font-size: 9px;
   color: #b69acb;
   padding: 3px 5px;
