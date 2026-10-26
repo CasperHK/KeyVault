@@ -7,6 +7,23 @@ Go, Gin, GORM, SQLite, React, TypeScript, Vite and TanStack Router.
 
 Prerequisites: Go 1.26.10+ and Node.js 22+.
 
+### One-click startup on Windows
+
+Double-click [start-dev.bat](../../start-dev.bat) in the repository root, or run
+it from a terminal. The launcher works regardless of your current directory.
+It checks Go, Node.js, npm and the local `.env`, installs missing frontend
+dependencies with `npm ci`, and opens separate API and frontend windows.
+Vite opens **http://localhost:5173** in your browser when ready.
+
+Keep both windows open while developing. Stop the servers with **Ctrl+C** in
+each window. Errors remain visible in their respective windows. Port 5173 must
+be free; the launcher intentionally does not switch to a different frontend port.
+On first startup, Go compilation and database initialization may take longer
+than the frontend; wait for the API's startup message before signing in.
+For a fresh clone, generate `.env` as described below before using the launcher.
+
+### Manual startup
+
 ```powershell
 Set-Location src\web-framework
 npm ci
